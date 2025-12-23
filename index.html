@@ -216,30 +216,95 @@
       <div class="space-y-4" x-init="fetchTunnelProviders()">
         <section class="space-y-2">
           <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">OpenAI API Gateway</h2>
-          <div class="rounded-xl border border-neutral-800 bg-neutral-900/70 shadow-sm flex flex-col gap-3">
-            <div class="flex items-center gap-3 p-4 pb-0">
+          <div class="rounded-xl border border-neutral-800 bg-neutral-900/70 shadow-sm">
+            <div class="flex flex-col gap-4 p-4">
+              <div class="flex items-center justify-between">
+                <div class="flex items-center gap-2">
+                  <span
+                    class="h-2 w-2 rounded-full"
+                    :class="tunnel.loading ? 'bg-neutral-500 animate-pulse' : (tunnel.status.active || hasExternalUrl ? 'bg-emerald-400' : 'bg-neutral-600')"
+                  ></span>
+                  <span
+                    class="text-xs"
+                    :class="tunnel.loading ? 'text-neutral-400' : (tunnel.status.active || hasExternalUrl ? 'text-emerald-400' : 'text-neutral-500')"
+                    x-text="tunnel.loading ? 'Loading' : (tunnel.status.active ? 'Connected' : (hasExternalUrl ? 'External URL' : 'Inactive'))"
+                  ></span>
+                </div>
+                <template x-if="tunnel.status.active">
+                  <button
+                    @click="stopTunnel()"
+                    class="rounded-lg border border-red-500/60 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/20"
+                  >Stop Tunnel</button>
+                </template>
+              </div>
+
+              <div class="space-y-1">
+                <label
+                  class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500"
+                  x-text="hasTunnel ? 'OpenAI Base URL' : 'Custom Domain (Optional)'"
+                ></label>
+                <input
+                  type="text"
+                  :value="hasTunnel ? effectivePublicUrl + '/v1' : tunnel.customDomain"
+                  :readonly="hasTunnel"
+                  @input="if (!hasTunnel) tunnel.customDomain = $event.target.value"
+                  @focus="$el.select()"
+                  :placeholder="hasTunnel ? '' : (tunnel.loading ? 'Loading providers...' : 'e.g. yourname.example.com')"
+                  class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none font-mono"
+                >
+              </div>
+
+              <template x-if="!hasTunnel">
+                <div class="space-y-3">
+                  <div class="flex flex-wrap items-center justify-between gap-3">
+                    <div class="flex flex-wrap gap-2" x-show="!tunnel.loading && tunnel.providers.some(p => p.available)">
+                      <template x-for="p in tunnel.providers.filter(p => p.available)" :key="p.id">
+                        <button
+                          @click="tunnel.selectedProvider = p.id"
+                          :class="tunnel.selectedProvider === p.id ? 'bg-neutral-700 text-white border-neutral-600' : 'bg-neutral-950 text-neutral-400 border-neutral-800'"
+                          class="inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition"
+                          x-text="p.name"
+                        ></button>
+                      </template>
+                    </div>
+                    <div class="flex flex-wrap gap-2" x-show="tunnel.loading">
+                      <span class="h-7 w-20 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"></span>
+                      <span class="h-7 w-16 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"></span>
+                      <span class="h-7 w-12 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"></span>
+                    </div>
+                    <template x-if="!tunnel.status.active && !hasExternalUrl">
+                      <button
+                        @click="startTunnel()"
+                        :disabled="tunnel.starting || !tunnel.selectedProvider || !tunnel.providers.some(p => p.available)"
+                        class="rounded-lg bg-neutral-100 px-3 py-2 text-xs font-semibold text-neutral-950 hover:bg-white disabled:opacity-50"
+                        x-text="tunnel.starting ? 'Creating...' : 'Create Tunnel'"
+                        x-show="!tunnel.loading"
+                      ></button>
+                    </template>
+                  </div>
+                  <p x-show="!tunnel.providers.some(p => p.available) && !tunnel.loading" class="text-xs text-neutral-400">
+                    No tunnel providers found (install cloudflared, ngrok, or tailscale).
+                  </p>
+                </div>
+              </template>
+
+              <p x-show="tunnel.error" class="text-xs text-red-400" x-text="tunnel.error"></p>
+            </div>
+
+            <div class="space-y-1 px-4 pb-4">
+              <label class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Generated API Key</label>
               <input
                 type="text"
-                :value="effectivePublicUrl + '/v1'"
+                :value="apiKey"
                 readonly
                 @focus="$el.select()"
+                placeholder="Connect to a provider first..."
                 class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono"
               >
-              <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">OpenAI Base URL</label>
             </div>
-            <div class="flex items-center gap-3 px-4 pb-0">
-            <input
-            type="text"
-            :value="apiKey"
-            readonly
-            @focus="$el.select()"
-            placeholder="Connect to a provider first..."
-            class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono"
-          >              <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">Generated API Key</label>
-        </div>
               
-            <div class="flex items-center gap-3 p-4 border-t border-neutral-800">
-              <template x-if="claude.connected || chatgpt.connected">
+            <template x-if="claude.connected || chatgpt.connected">
+              <div class="flex items-center gap-3 p-4 border-t border-neutral-800">
               <div class="flex items-start gap-3">
                 <div class="flex flex-col gap-2 w-full">
                   <template x-for="(route, i) in routes" :key="i">
@@ -292,8 +357,8 @@
                 </div>
                 <label class="text-xs text-neutral-500 shrink-0 w-28 text-right self-start">Routes</label>
               </div>
+              </div>
             </template>
-            </div>
           </div>
         </section>   
             <!-- Integrate Section -->
@@ -341,102 +406,18 @@
                     <li class="flex flex-col gap-1">
                       <div class="flex items-start gap-2">
                         <span class="mt-0.5 flex h-5 w-5 items-center justify-center rounded-full bg-neutral-800 text-[11px] shrink-0">5</span>
-                        <div class="flex-1 space-y-2">
-                          <!-- Show URL when tunnel is active (dynamic or pre-configured) -->
-                          <template x-if="hasTunnel">
-                              <div class="relative w-full" style="margin-top: 0px !important;">
-                                <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs pr-1">Set Base URL:</span>
-                                <input
-                                  type="text"
-                                  :value="effectivePublicUrl + '/v1'"
-                                  readonly
-                                  @focus="$el.select()"
-                                  class="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono pl-[100px] w-full"
-                                >
-                            </div>
-                          </template>
-                          <!-- Show instructions when no tunnel -->
-                          <template x-if="!hasTunnel">
-                            <div>
-                              <span>Set Base URL: Expose port <code class="rounded bg-neutral-800/80 px-1.5 py-0.5 text-xs" x-text="port"></code> publicly or</span>
-                              <button
-                                type="button"
-                                @click="tunnel.showPanel = !tunnel.showPanel; if(tunnel.showPanel && !tunnel.providers.length) fetchTunnelProviders()"
-                                class="text-sky-400 hover:text-sky-300 hover:underline"
-                              >create a tunnel</button>
-                            </div>
-                          </template>
-                          <!-- Manage tunnel link when dynamic tunnel is active (not for pre-configured) -->
-                          <template x-if="tunnel.status.active">
-                            <button
-                              type="button"
-                              @click="tunnel.showPanel = !tunnel.showPanel"
-                              class="text-sky-400 hover:text-sky-300 hover:underline text-sm"
-                              x-text="tunnel.showPanel ? 'hide tunnel options' : 'manage tunnel'"
-                            ></button>
-                          </template>
-                          <!-- Tunnel Panel (collapsible in cursor view) -->
-                          <template x-if="tunnel.showPanel">
-                            <div class="rounded-lg border border-neutral-800 bg-neutral-900/50 p-2 space-y-3">
-                              <!-- Provider Tabs -->
-                              <div class="flex flex-wrap gap-2" x-show="tunnel.providers.length > 0">
-                                <template x-for="p in tunnel.providers.filter(p => p.available)" :key="p.id">
-                                  <button
-                                    @click="tunnel.selectedProvider = p.id"
-                                    :class="tunnel.selectedProvider === p.id ? 'bg-neutral-700 text-white border-neutral-600' : 'bg-neutral-950 text-neutral-400 border-neutral-800'"
-                                    class="inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition"
-                                    x-text="p.name"
-                                  ></button>
-                                </template>
-                              </div>
-                              <!-- No providers -->
-                              <p x-show="tunnel.providers.length === 0 && !tunnel.loading" class="text-sm text-neutral-400">
-                                No tunnel providers found (install cloudflared, ngrok, or tailscale).
-                              </p>
-                              <!-- Loading -->
-                              <p x-show="tunnel.loading" class="text-sm text-neutral-400">Loading providers...</p>
-                              <!-- Active Dynamic Tunnel (with stop button) -->
-                              <template x-if="tunnel.status.active">
-                                <div class="space-y-2">
-                                  <div class="flex items-center gap-2 text-sm">
-                                    <span class="inline-flex h-2 w-2 rounded-full bg-emerald-400"></span>
-                                    <span class="font-semibold text-emerald-400">Active</span>
-                                  </div>
-                                  <input
-                                    type="text"
-                                    :value="tunnel.status.publicUrl + '/v1'"
-                                    readonly
-                                    @focus="$el.select()"
-                                    class="w-full rounded-lg border border-emerald-500/30 bg-neutral-950 px-3 py-2 text-xs text-neutral-100 font-mono"
-                                  >
-                                  <button
-                                    @click="stopTunnel()"
-                                    class="w-full rounded-lg bg-red-500/90 px-3 py-2 text-sm font-semibold text-white hover:bg-red-600"
-                                  >Stop Tunnel</button>
-                                </div>
-                              </template>
-                              <!-- Start Form (when no dynamic tunnel and not pre-configured) -->
-                              <template x-if="!tunnel.status.active && !hasExternalUrl && tunnel.providers.some(p => p.available)">
-                                <div class="space-y-2">
-                                  <input
-                                    x-show="tunnel.providers.find(p => p.id === tunnel.selectedProvider)?.supportsNamedTunnels"
-                                    type="text"
-                                    x-model="tunnel.customDomain"
-                                    placeholder="Custom domain (optional)"
-                                    class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
-                                  >
-                                  <button
-                                    @click="startTunnel()"
-                                    :disabled="tunnel.starting"
-                                    class="w-full rounded-lg bg-neutral-100 px-3 py-2 text-sm font-semibold text-neutral-950 hover:bg-white disabled:opacity-50"
-                                    x-text="tunnel.starting ? 'Starting...' : 'Start Tunnel'"
-                                  ></button>
-                                </div>
-                              </template>
-                              <!-- Error -->
-                              <p x-show="tunnel.error" class="text-sm text-red-400" x-text="tunnel.error"></p>
-                            </div>
-                          </template>
+                        <div class="flex-1 space-y-1">
+                          <div class="relative w-full">
+                            <span class="absolute left-3 top-1/2 -translate-y-1/2 text-neutral-500 text-xs pr-1">Set Base URL:</span>
+                            <input
+                              type="text"
+                              :value="hasTunnel ? effectivePublicUrl + '/v1' : ''"
+                              readonly
+                              @focus="$el.select()"
+                              :placeholder="hasTunnel ? '' : 'Create a tunnel first...'"
+                              class="rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono pl-[100px] w-full"
+                            >
+                          </div>
                         </div>
                       </div>
                     </li>
@@ -877,11 +858,15 @@
           if (!this.tunnel.selectedProvider) return;
           this.tunnel.starting = true;
           this.tunnel.error = null;
+          const rawDomain = (this.tunnel.customDomain || '').trim();
+          const namedUrl = rawDomain
+            ? rawDomain.replace(/^https?:\/\//, '').split('/')[0]
+            : undefined;
           try {
             const res = await fetch(`/api/tunnels/${this.tunnel.selectedProvider}/start`, {
               method: 'POST',
               headers: { 'Accept': 'application/json', 'Content-Type': 'application/json' },
-              body: JSON.stringify({ namedUrl: this.tunnel.customDomain || undefined })
+              body: JSON.stringify({ namedUrl })
             });
             const data = await res.json();
             if (data.success) {
