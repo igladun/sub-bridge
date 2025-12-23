@@ -23,15 +23,31 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Debug OIDC - Get Token
+      - name: Exchange OIDC token for npm token
+        id: exchange_token
         run: |
-          echo "Fetching OIDC token..."
-          TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r '.value')
-          echo "Token length: ${#TOKEN}"
-          echo "First 100 chars: ${TOKEN:0:100}"
+          echo "Exchanging GitHub OIDC token for npm token..."
+          # Get the GitHub OIDC token
+          GH_OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r '.value')
+
+          # Exchange it for an npm token
+          NPM_TOKEN=$(curl -s -X POST https://registry.npmjs.org/-/npm/v1/auth/oidc \
+            -H "Content-Type: application/json" \
+            -d "{\"tokenId\": \"$GH_OIDC_TOKEN\"}" | jq -r '.npmToken')
+
+          if [ "$NPM_TOKEN" = "null" ] || [ -z "$NPM_TOKEN" ]; then
+            echo "Failed to exchange OIDC token for npm token"
+            echo "This likely means the package is not configured for trusted publishing on npm"
+            exit 1
+          fi
+
+          echo "npm_token=$NPM_TOKEN" >> $GITHUB_OUTPUT
+          echo "Token exchange successful"
 
       - name: Build
         run: npm run build
 
       - name: Publish
-        run: npm publish --provenance --loglevel=verbose
+        run: npm publish --provenance
+        env:
+          NODE_AUTH_TOKEN: ${{ steps.exchange_token.outputs.npm_token }}
