@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/buremba/sub-bridge/compare/sub-bridge-v1.0.0...sub-bridge-v1.0.1) (2025-12-23)
+
+
+### Bug Fixes
+
+* improve Cloudflare tunnel reliability ([a200e9c](https://github.com/buremba/sub-bridge/commit/a200e9ccc917f7946ca9a6da2f8d7e2601e0b1f0))
+
 ## 1.0.0 (2025-12-23)
 
 
