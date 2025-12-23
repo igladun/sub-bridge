@@ -38,8 +38,12 @@ export class CloudflareTunnelProvider implements TunnelProvider {
 
     // Wait for URL event, then wait for connection to be established
     const url = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Tunnel timeout (60s)')), 60000)
+      const timeout = setTimeout(() => {
+        tunnel.stop()
+        reject(new Error('Tunnel timeout (60s)'))
+      }, 60000)
       let tunnelUrl: string | null = null
+      let lastError: string | null = null
 
       const checkReady = () => {
         if (tunnelUrl) {
@@ -47,6 +51,21 @@ export class CloudflareTunnelProvider implements TunnelProvider {
           resolve(tunnelUrl)
         }
       }
+
+      // Capture stderr for error messages (rate limiting, etc.)
+      tunnel.on('stderr', (data: string) => {
+        if (data.includes('ERR') || data.includes('error')) {
+          // Extract meaningful error message
+          if (data.includes('Too Many Requests') || data.includes('1015')) {
+            lastError = 'Cloudflare rate limit exceeded. Please wait a few minutes or use ngrok instead.'
+          } else if (data.includes('failed to unmarshal')) {
+            lastError = data.split('\n').find(line => line.includes('failed'))?.trim() || data
+          } else {
+            const errMatch = data.match(/ERR\s+(.+?)(?:\s+error=|$)/)
+            if (errMatch) lastError = errMatch[1].trim()
+          }
+        }
+      })
 
       tunnel.once('url', (url: string) => {
         tunnelUrl = url
@@ -61,6 +80,14 @@ export class CloudflareTunnelProvider implements TunnelProvider {
       tunnel.once('error', (err: Error) => {
         clearTimeout(timeout)
         reject(err)
+      })
+
+      // Handle process exit (e.g., rate limiting causes immediate exit)
+      tunnel.once('exit', (code: number | null) => {
+        if (code !== 0 && code !== null) {
+          clearTimeout(timeout)
+          reject(new Error(lastError || `Cloudflare tunnel exited with code ${code}`))
+        }
       })
     })
 
