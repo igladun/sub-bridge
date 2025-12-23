@@ -27,7 +27,4 @@ jobs:
         run: npm run build
 
       - name: Publish
-        run: |
-          unset NODE_AUTH_TOKEN
-          unset NPM_CONFIG_USERCONFIG
-          npm publish --access public --provenance
+        run: npm publish --access public --provenance
