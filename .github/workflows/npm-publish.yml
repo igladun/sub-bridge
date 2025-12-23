@@ -23,37 +23,11 @@ jobs:
       - name: Install deps
         run: npm ci
 
-      - name: Exchange OIDC token for npm token
-        id: exchange_token
-        run: |
-          echo "Exchanging GitHub OIDC token for npm token..."
-          # Get the GitHub OIDC token
-          GH_OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r '.value')
-          echo "Got GitHub OIDC token (length: ${#GH_OIDC_TOKEN})"
-
-          # Exchange it for an npm token
-          echo "Sending request to npm OIDC endpoint..."
-          RESPONSE=$(curl -s -X POST https://registry.npmjs.org/-/npm/v1/auth/oidc \
-            -H "Content-Type: application/json" \
-            -d "{\"tokenId\": \"$GH_OIDC_TOKEN\"}")
-          echo "npm response: $RESPONSE"
-
-          NPM_TOKEN=$(echo "$RESPONSE" | jq -r '.npmToken')
-
-          if [ "$NPM_TOKEN" = "null" ] || [ -z "$NPM_TOKEN" ]; then
-            echo "Failed to exchange OIDC token for npm token"
-            echo "Full response:"
-            echo "$RESPONSE" | jq '.'
-            exit 1
-          fi
-
-          echo "npm_token=$NPM_TOKEN" >> $GITHUB_OUTPUT
-          echo "Token exchange successful"
-
       - name: Build
         run: npm run build
 
       - name: Publish
         run: npm publish --provenance
         env:
-          NODE_AUTH_TOKEN: ${{ steps.exchange_token.outputs.npm_token }}
+          # Tell npm to use OIDC for authentication
+          NPM_CONFIG_PROVENANCE: "true"
