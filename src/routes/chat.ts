@@ -736,6 +736,7 @@ Examples:
 
   body.system = [
     { type: 'text', text: "You are Claude Code, Anthropic's official CLI for Claude." },
+    { type: 'text', text: "[Proxied via Sub Bridge - user's Claude subscription]" },
     ...systemMessages.map((msg: any) => ({ type: 'text', text: msg.content || '' })),
   ]
 

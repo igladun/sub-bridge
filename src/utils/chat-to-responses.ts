@@ -229,10 +229,11 @@ function convertMessage(msg: ChatCompletionMessageParam): ResponseInputItem[] {
     // Add tool calls as separate function_call items
     if (assistantMsg.tool_calls && Array.isArray(assistantMsg.tool_calls)) {
       for (const toolCall of assistantMsg.tool_calls) {
-        const args = toolCall.function?.arguments
+        const args = toolCall.type === 'function' ? toolCall.function.arguments : toolCall.custom.input
+        const name = toolCall.type === 'function' ? toolCall.function.name : toolCall.custom.name
         items.push({
           type: 'function_call',
-          name: toolCall.function?.name || 'unknown',
+          name: name || 'unknown',
           arguments: typeof args === 'string' ? args : JSON.stringify(args || {}),
           call_id: toolCall.id || `call_${Date.now()}_${Math.random().toString(36).slice(2)}`,
         })

@@ -1,6 +1,7 @@
 /**
  * Shared MCP proxy functionality
  */
+import { buildStatusText } from '../utils/setup-instructions'
 
 export interface McpToolResult {
   [x: string]: unknown
@@ -11,20 +12,29 @@ export interface McpToolResult {
  * Call a tool on the HTTP server
  */
 export async function callTool(port: number, name: string, args: Record<string, unknown> = {}): Promise<McpToolResult> {
-  const response = await fetch(`http://localhost:${port}/mcp/tools/${name}`, {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ arguments: args }),
-  })
+  const localUrl = `http://localhost:${port}`
 
-  if (!response.ok) {
-    const error = await response.text()
+  try {
+    const response = await fetch(`${localUrl}/mcp/tools/${name}`, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ arguments: args }),
+    })
+
+    if (!response.ok) {
+      const error = await response.text()
+      return {
+        content: [{ type: 'text' as const, text: `Error calling tool ${name}: ${error}` }],
+      }
+    }
+
+    return response.json() as Promise<McpToolResult>
+  } catch {
+    // Server not reachable - return helpful setup instructions
     return {
-      content: [{ type: 'text' as const, text: `Error calling tool ${name}: ${error}` }],
+      content: [{ type: 'text' as const, text: buildStatusText({ mode: 'proxy', baseUrl: localUrl }) }],
     }
   }
-
-  return response.json() as Promise<McpToolResult>
 }
 
 /**

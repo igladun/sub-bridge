@@ -189,70 +189,60 @@
               >
               <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">OpenAI Base URL</label>
             </div>
-              <div class="flex items-center gap-3 p-4 pb-0 pt-0" x-if="claude.connected">
-                <div class="flex flex-col gap-2 w-full">
-                  <!-- Account Selector (show when both providers connected) -->
-                  <div x-show="claude.connected && chatgpt.connected" class="flex items-center gap-2 pb-2 border-b border-neutral-800">
-                    <label class="text-xs text-neutral-400 shrink-0">Active Provider:</label>
-                    <select
-                      x-model="activeProvider"
-                      @change="localStorage.setItem('active_provider', activeProvider)"
-                      x-init="activeProvider = localStorage.getItem('active_provider') || 'claude'"
-                      class="flex-1 rounded-lg border border-neutral-700 bg-neutral-900 px-3 py-1.5 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
+              <template x-if="claude.connected || chatgpt.connected">
+                <div class="flex items-start gap-3 p-4 pb-0 pt-0">
+                  <div class="flex flex-col gap-2 w-full">
+                    <template x-for="(route, i) in routes" :key="i">
+                      <div
+                        class="grid items-center gap-2"
+                        :class="Object.keys(claude.accounts).length > 1 ? 'grid-cols-[1fr_auto_auto_1fr_auto]' : 'grid-cols-[1fr_auto_1fr_auto]'"
+                      >
+                        <input
+                          type="text"
+                          list="cursor-models"
+                          x-model="route.cursor"
+                          placeholder="Cursor model..."
+                          class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
+                        >
+                        <span class="text-neutral-500 px-1">-></span>
+                        <template x-if="Object.keys(claude.accounts).length > 1">
+                          <select
+                            x-model="route.account"
+                            x-init="route.account = route.account || claude.activeAccount"
+                            class="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
+                          >
+                            <template x-for="email in Object.keys(claude.accounts)" :key="'route-account-' + email">
+                              <option :value="email" x-text="claude.accounts[email].displayName || email"></option>
+                            </template>
+                          </select>
+                        </template>
+                        <input
+                          type="text"
+                          list="claude-models"
+                          x-model="route.claude"
+                          placeholder="Claude model..."
+                          class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
+                        >
+                        <button
+                          @click="routes.splice(i, 1)"
+                          class="p-2 text-neutral-500 hover:text-red-400 transition"
+                          title="Remove route"
+                        >
+                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                        </button>
+                      </div>
+                    </template>
+                    <button
+                      @click="routes.push({ cursor: '', claude: '', account: claude.activeAccount || '' })"
+                      class="inline-flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200 transition mt-1"
                     >
-                      <template x-if="Object.keys(claude.accounts).length > 0">
-                        <optgroup label="Claude">
-                          <template x-for="email in Object.keys(claude.accounts)" :key="'claude-' + email">
-                            <option :value="'claude-' + email" x-text="'Claude: ' + (claude.accounts[email].displayName || email)"></option>
-                          </template>
-                        </optgroup>
-                      </template>
-                      <template x-if="Object.keys(chatgpt.accounts).length > 0">
-                        <optgroup label="ChatGPT">
-                          <template x-for="accountId in Object.keys(chatgpt.accounts)" :key="'chatgpt-' + accountId">
-                            <option :value="'chatgpt-' + accountId" x-text="'ChatGPT: ' + (chatgpt.accounts[accountId].displayName || accountId)"></option>
-                          </template>
-                        </optgroup>
-                      </template>
-                    </select>
+                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                      Add Route
+                    </button>
                   </div>
-                  <template x-for="(route, i) in routes" :key="i">
-                    <div class="grid grid-cols-[1fr_auto_1fr_auto] items-center gap-2">
-                      <input
-                        type="text"
-                        list="cursor-models"
-                        x-model="route.cursor"
-                        placeholder="Cursor model..."
-                        class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
-                      >
-                      <span class="text-neutral-500 px-1">-></span>
-                      <input
-                        type="text"
-                        list="claude-models"
-                        x-model="route.claude"
-                        placeholder="Claude model..."
-                        class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
-                      >
-                      <button
-                        @click="routes.splice(i, 1)"
-                        class="p-2 text-neutral-500 hover:text-red-400 transition"
-                        title="Remove route"
-                      >
-                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                      </button>
-                    </div>
-                  </template>
-                  <button
-                    @click="routes.push({ cursor: '', claude: '' })"
-                    class="inline-flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200 transition mt-1"
-                  >
-                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                    Add Route
-                  </button>
+                  <label class="text-xs text-neutral-500 shrink-0 w-28 text-right self-start">Routes</label>
                 </div>
-                <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">Routes</label>
-
-              </div>
+              </template>
             <div class="flex items-center gap-3 p-4 border-t border-neutral-800">
               <input
                 type="text"
@@ -452,13 +442,10 @@
           showInput: false
         },
 
-        // Active provider (for multi-provider switching)
-        activeProvider: 'claude',
-
         // Routing state
         routes: [
-          { cursor: 'o3', claude: 'opus-4.5' },
-          { cursor: 'o3-mini', claude: 'sonnet-4.5' }
+          { cursor: 'o3', claude: 'opus-4.5', account: '' },
+          { cursor: 'o3-mini', claude: 'sonnet-4.5', account: '' }
         ],
 
         // Tunnel state
@@ -501,49 +488,36 @@
         // Computed API key (format: o3=opus-4.5,o3-mini=sonnet-4.5:sk-ant-xxx sk-xxx)
         get apiKey() {
           const keys = [];
-          const bothConnected = this.claude.connected && this.chatgpt.connected;
+          const claudeMappings = new Map();
 
-          // When both providers are connected, use only the activeProvider selection
-          if (bothConnected && this.activeProvider) {
-            if (this.activeProvider.startsWith('claude-')) {
-              const email = this.activeProvider.substring(7); // Remove 'claude-' prefix
-              const claudeAccount = this.claude.accounts[email];
-              if (claudeAccount && claudeAccount.token) {
-                const mappings = this.routes
-                  .filter(r => r.cursor && r.claude)
-                  .map(r => `${r.cursor}=${r.claude}`)
-                  .join(',');
-                const claudeKey = mappings ? `${mappings}:${claudeAccount.token}` : claudeAccount.token;
-                keys.push(claudeKey);
-              }
-            } else if (this.activeProvider.startsWith('chatgpt-')) {
-              const accountId = this.activeProvider.substring(8); // Remove 'chatgpt-' prefix
-              const chatgptAccount = this.chatgpt.accounts[accountId];
-              if (chatgptAccount && chatgptAccount.token) {
-                const chatgptKey = chatgptAccount.accountId
-                  ? `${chatgptAccount.token}#${chatgptAccount.accountId}`
-                  : chatgptAccount.token;
-                keys.push(chatgptKey);
-              }
+          for (const route of this.routes) {
+            if (!route.cursor || !route.claude) continue;
+            const accountId = route.account || this.claude.activeAccount;
+            if (!accountId) continue;
+            const claudeAccount = this.claude.accounts[accountId];
+            if (!claudeAccount || !claudeAccount.token) continue;
+
+            if (!claudeMappings.has(accountId)) {
+              claudeMappings.set(accountId, { token: claudeAccount.token, mappings: [] });
             }
-          } else {
-            // When only one provider is connected, use their active account
+            claudeMappings.get(accountId).mappings.push(`${route.cursor}=${route.claude}`);
+          }
+
+          for (const [, group] of claudeMappings) {
+            if (!group.mappings.length) continue;
+            keys.push(`${group.mappings.join(',')}:${group.token}`);
+          }
+
+          const chatgptAccount = this.chatgpt.activeAccount ? this.chatgpt.accounts[this.chatgpt.activeAccount] : null;
+          if (chatgptAccount && chatgptAccount.token) {
+            const chatgptKey = chatgptAccount.accountId
+              ? `${chatgptAccount.token}#${chatgptAccount.accountId}`
+              : chatgptAccount.token;
+            keys.push(chatgptKey);
+          } else if (!keys.length) {
             const claudeAccount = this.claude.activeAccount ? this.claude.accounts[this.claude.activeAccount] : null;
             if (claudeAccount && claudeAccount.token) {
-              const mappings = this.routes
-                .filter(r => r.cursor && r.claude)
-                .map(r => `${r.cursor}=${r.claude}`)
-                .join(',');
-              const claudeKey = mappings ? `${mappings}:${claudeAccount.token}` : claudeAccount.token;
-              keys.push(claudeKey);
-            }
-
-            const chatgptAccount = this.chatgpt.activeAccount ? this.chatgpt.accounts[this.chatgpt.activeAccount] : null;
-            if (chatgptAccount && chatgptAccount.token) {
-              const chatgptKey = chatgptAccount.accountId
-                ? `${chatgptAccount.token}#${chatgptAccount.accountId}`
-                : chatgptAccount.token;
-              keys.push(chatgptKey);
+              keys.push(claudeAccount.token);
             }
           }
 
@@ -629,6 +603,7 @@
         async submitClaudeCode() {
           this.claude.loading = true;
           this.claude.error = null;
+          const hadClaudeAccounts = Object.keys(this.claude.accounts).length > 0;
           try {
             const res = await fetch('/auth/claude/complete', {
               method: 'POST',
@@ -651,6 +626,10 @@
               this.claude.code = '';
               this.claude.showInput = false;
 
+              if (!hadClaudeAccounts) {
+                this.ensureDefaultClaudeRoutes();
+              }
+
               // Save to localStorage
               localStorage.setItem('claude_accounts', JSON.stringify(this.claude.accounts));
               localStorage.setItem('claude_active_account', email);
@@ -662,6 +641,15 @@
           } finally {
             this.claude.loading = false;
           }
+        },
+
+        ensureDefaultClaudeRoutes() {
+          const hasRoutes = this.routes.some(route => route.cursor && route.claude);
+          if (hasRoutes) return;
+          this.routes = [
+            { cursor: 'o3', claude: 'opus-4.5', account: this.claude.activeAccount || '' },
+            { cursor: 'o3-mini', claude: 'sonnet-4.5', account: this.claude.activeAccount || '' }
+          ];
         },
 
         // Disconnect Claude and clear active account

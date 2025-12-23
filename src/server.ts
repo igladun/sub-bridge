@@ -21,6 +21,7 @@ import { createAuthRoutes } from './routes/auth'
 import { createTunnelRoutes } from './routes/tunnels'
 import { createChatRoutes } from './routes/chat'
 import { addSharedOptions } from './utils/cli-args'
+import { buildStatusText } from './utils/setup-instructions'
 
 // ============================================================================
 // CONFIGURATION
@@ -62,6 +63,20 @@ export function createServerApp(config: ServerConfig, getPublicUrl: () => string
     return c.html(html)
   })
 
+  // Static assets (for setup.png)
+  app.get('/assets/*', async (c) => {
+    const filePath = c.req.path.replace('/assets/', '')
+    const fullPath = path.resolve(__dirname, '..', 'public', 'assets', filePath)
+    try {
+      const file = await fs.readFile(fullPath)
+      const ext = path.extname(filePath).toLowerCase()
+      const contentType = ext === '.png' ? 'image/png' : ext === '.jpg' || ext === '.jpeg' ? 'image/jpeg' : 'application/octet-stream'
+      return new Response(file, { headers: { 'Content-Type': contentType } })
+    } catch {
+      return c.text('Not found', 404)
+    }
+  })
+
   // Health check with service identifier
   app.get('/health', (c) => c.json({
     status: 'ok',
@@ -81,23 +96,15 @@ export function createServerApp(config: ServerConfig, getPublicUrl: () => string
 
     if (toolName === 'get_status') {
       const publicUrl = getPublicUrl()
-      const baseUrl = `${publicUrl.replace(/\/$/, '')}/v1`
-      const statusText = [
-        `This proxy lets apps like Cursor use Claude models via the OpenAI API format.`,
-        `You can route any model name to any Claude model using a single API key.`,
-        ``,
-        `To get started:`,
-        `1. Open ${publicUrl} in your external browser where the user is logged in`,
-        `2. Authenticate with your Claude and OpenAI account`,
-        `3. Configure model routing (e.g., o3 → opus-4.5, o3-mini → sonnet-4.5)`,
-        `4. Copy the generated API key with routing embedded`,
-        `5. Paste the API key in Cursor Settings -> Models -> API Keys`,
-        `The API key format is: <mappings>:<token>`,
-        `  - Mappings: cursor_model=claude_model (comma-separated)`,
-        `  - Token: your Claude OAuth token (sk-ant-...)`,
-        ``,
-        `Example: When Cursor requests "o3", the proxy routes it to "claude-opus-4-5-20251101"`,
-      ].join('\n')
+      const tunnelStatus = tunnelRegistry.getStatus()
+      const isLocalOnly = publicUrl.startsWith('http://localhost')
+
+      const statusText = buildStatusText({
+        mode: 'server',
+        baseUrl: publicUrl,
+        isLocalOnly,
+        tunnelActive: tunnelStatus.active,
+      })
 
       return c.json({
         content: [{ type: 'text', text: statusText }],
