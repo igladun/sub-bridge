@@ -67,44 +67,49 @@
       <div class="flex flex-col gap-3">
 
         <!-- Claude Row -->
-        <div class="flex items-center gap-3">
-          <!-- Button -->
-          <template x-if="!claude.showInput">
-            <a
-              @click.prevent="claude.showInput = true; window.open('/auth/claude', '_blank')"
-              href="/auth/claude"
-              class="group inline-flex items-center justify-center gap-2 rounded-lg bg-[#d97757] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#c4674b] cursor-pointer"
-            >
-              <svg class="h-4 w-4 text-white" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-claude"></use></svg>
-              <span>Login with Claude</span>
-            </a>
-          </template>
-          <template x-if="claude.showInput">
-            <button
-              @click="submitClaudeCode()"
-              :disabled="claude.loading || !claude.code.includes('#')"
-              class="group inline-flex items-center justify-center gap-2 rounded-lg bg-[#d97757] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#c4674b] disabled:opacity-50 shrink-0"
-            >
-              <svg class="h-4 w-4 text-white" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-claude"></use></svg>
-              <span x-text="claude.loading ? 'Connecting...' : 'Paste Code'"></span>
-            </button>
-          </template>
-          <!-- Input (shown after first click) -->
-          <template x-if="claude.showInput">
-            <input
-              type="text"
-              x-model="claude.code"
-              @input="claudeCodeInput()"
-              placeholder="CODE#STATE"
-              class="flex-1 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none font-mono"
-              :disabled="claude.loading"
-              x-init="$nextTick(() => $el.focus())"
-            >
-          </template>
-          <!-- Spacer -->
-          <div class="flex-1" x-show="!claude.showInput"></div>
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-3 flex-wrap">
+            <!-- Button -->
+            <template x-if="!claude.showInput">
+              <a
+                @click.prevent="claude.showInput = true; window.open('/auth/claude', '_blank')"
+                href="/auth/claude"
+                class="group inline-flex items-center justify-center gap-2 rounded-lg bg-[#d97757] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#c4674b] cursor-pointer"
+              >
+                <svg class="h-4 w-4 text-white" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-claude"></use></svg>
+                <span>Login with Claude</span>
+              </a>
+            </template>
+            <template x-if="claude.showInput">
+              <button
+                disabled
+                class="group inline-flex items-center justify-center gap-2 rounded-lg bg-[#d97757] px-3 py-2 text-sm font-semibold text-white shadow-sm transition disabled:opacity-50 shrink-0"
+              >
+                <svg class="h-4 w-4 text-white" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-claude"></use></svg>
+                <span>Login with Claude</span>
+              </button>
+            </template>
+            <!-- Input (shown after first click) -->
+            <template x-if="claude.showInput">
+              <div class="flex items-center gap-2 flex-1">
+                <span class="text-xs text-neutral-400 shrink-0">Enter code</span>
+                <input
+                  type="text"
+                  x-model="claude.code"
+                  @input="claudeCodeInput()"
+                  placeholder="CODE#STATE"
+                  class="flex-1 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none font-mono"
+                  :disabled="claude.loading"
+                  x-init="$nextTick(() => $el.focus())"
+                >
+                <template x-if="claude.loading">
+                  <span class="text-xs text-neutral-400 shrink-0">Checking...</span>
+                </template>
+              </div>
+            </template>
+          </div>
           <!-- Status Indicator -->
-          <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-2 text-xs">
             <span class="h-2 w-2 rounded-full" :class="claude.connected ? 'bg-emerald-400' : 'bg-neutral-600'"></span>
             <span class="text-xs" :class="claude.connected ? 'text-emerald-400' : 'text-neutral-500'" x-text="claude.connected ? 'Connected' : 'Not connected'"></span>
             <!-- Account Switcher (show when multiple accounts) -->
@@ -136,32 +141,36 @@
         </template>
 
         <!-- ChatGPT Row -->
-        <div class="flex items-center gap-3">
-          <!-- Button -->
-          <button
-            @click="if(!chatgpt.showInput) { startChatGPT(); window.open('https://auth.openai.com/codex/device', '_blank'); } chatgpt.showInput = true"
-            :disabled="chatgpt.polling"
+        <div class="flex flex-col gap-1">
+          <div class="flex items-center gap-3 flex-wrap">
+            <!-- Button -->
+            <button
+              @click="if(!chatgpt.showInput) { startChatGPT(); window.open('https://auth.openai.com/codex/device', '_blank'); } chatgpt.showInput = true"
+            :disabled="chatgpt.polling || chatgpt.showInput"
             class="group inline-flex items-center justify-center gap-2 rounded-lg bg-[#10a37f] px-3 py-2 text-sm font-semibold text-white shadow-sm transition hover:bg-[#0d8a6a] disabled:opacity-50 shrink-0"
           >
             <svg class="h-4 w-4 text-white" viewBox="0 0 24 24" aria-hidden="true"><use href="#logo-openai"></use></svg>
-            <span x-text="chatgpt.polling ? 'Checking...' : (chatgpt.showInput ? 'Enter Device ID' : 'Login with ChatGPT')"></span>
+            <span>Login with ChatGPT</span>
           </button>
           <!-- Login link + Input (shown after first click) -->
           <template x-if="chatgpt.showInput">
             <div class="flex items-center gap-2">
+              <span class="text-xs text-neutral-400 shrink-0">Enter device id</span>
               <input
                 type="text"
                 :value="chatgpt.deviceId"
-                readonly
-                @focus="$el.select()"
-                class="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 font-mono text-center"
-              >
-            </div>
-          </template>
-          <!-- Spacer (always present to push status to right) -->
-          <div class="flex-1"></div>
+                  readonly
+                  @focus="$el.select()"
+                  class="w-32 rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 font-mono text-center"
+                >
+              <template x-if="chatgpt.polling">
+                <span class="text-xs text-neutral-400 shrink-0">Checking...</span>
+              </template>
+              </div>
+            </template>
+          </div>
           <!-- Status Indicator -->
-          <div class="flex items-center gap-2 shrink-0">
+          <div class="flex items-center gap-2 text-xs">
             <span class="h-2 w-2 rounded-full" :class="chatgpt.connected ? 'bg-emerald-400' : 'bg-neutral-600'"></span>
             <span class="text-xs" :class="chatgpt.connected ? 'text-emerald-400' : 'text-neutral-500'" x-text="chatgpt.connected ? 'Connected' : 'Not connected'"></span>
             <!-- Account Switcher (show when multiple accounts) -->
@@ -241,7 +250,7 @@
               <div class="space-y-1">
                 <label
                   class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500"
-                  x-text="hasTunnel ? 'OpenAI Base URL' : 'Custom Domain (Optional)'"
+                  x-text="tunnelLabel"
                 ></label>
                 <input
                   type="text"
@@ -511,6 +520,24 @@
         // Whether we have any tunnel (dynamic or pre-configured)
         get hasTunnel() {
           return this.tunnel.status.active || this.hasExternalUrl;
+        },
+
+        // Selected tunnel provider name (falls back to generic label)
+        get selectedTunnelName() {
+          const selected = this.tunnel.providers.find(p => p.id === this.tunnel.selectedProvider);
+          return selected ? selected.name : 'Tunnel';
+        },
+
+        // Label text for the tunnel/domain input
+        get tunnelLabel() {
+          if (this.hasTunnel) {
+            return 'OpenAI Base URL';
+          }
+          if (!this.tunnel.selectedProvider) {
+            return 'Select a tunnel provider';
+          }
+          const port = this.port || 'PORT';
+          return `Your ${this.selectedTunnelName} tunnel listens on localhost:${port}`;
         },
 
         // Debounce timer
