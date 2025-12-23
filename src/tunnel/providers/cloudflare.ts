@@ -36,13 +36,26 @@ export class CloudflareTunnelProvider implements TunnelProvider {
     // Use HTTP/2 protocol for more reliable connections
     const tunnel = Tunnel.quick(`http://localhost:${localPort}`, { '--config': configPath, '--protocol': 'http2' })
 
-    // Wait for URL event - the tunnel is usable once we have the URL
+    // Wait for URL event, then wait for connection to be established
     const url = await new Promise<string>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new Error('Tunnel timeout (60s)')), 60000)
+      let tunnelUrl: string | null = null
+
+      const checkReady = () => {
+        if (tunnelUrl) {
+          clearTimeout(timeout)
+          resolve(tunnelUrl)
+        }
+      }
 
       tunnel.once('url', (url: string) => {
-        clearTimeout(timeout)
-        resolve(url)
+        tunnelUrl = url
+        // Wait for connected event or timeout after 15s
+        const connectTimeout = setTimeout(checkReady, 15000)
+        tunnel.once('connected', () => {
+          clearTimeout(connectTimeout)
+          checkReady()
+        })
       })
 
       tunnel.once('error', (err: Error) => {
