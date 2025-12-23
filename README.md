@@ -12,20 +12,6 @@ Links:
 - Use existing subscriptions: keep what you already pay for and route usage into Cursor.
 - Keep Cursor UX: chat, agents, and tools continue to work; autocomplete still needs a Cursor plan.
 
-## How it works
-
-```mermaid
-graph LR
-  A[Cursor] --> B[Sub Bridge MCP server]
-  A --> C[Local OpenAI-compatible proxy]
-  C --> D[Claude APIs]
-  C --> E[OpenAI APIs]
-```
-
-Sub Bridge is an MCP server that includes OpenAI API proxy. It lets you login with Claude or ChatGPT and generate API keys for the proxy, which then set in Cursor Settings as an external provider. 
-
-The proxy uses Codex and Claude Code specific instructions that enables you to use Cursor with your local credentials.
-
 ## Quick Start
 
 1. Install the MCP server:
@@ -49,9 +35,25 @@ The proxy uses Codex and Claude Code specific instructions that enables you to u
   </tr>
 </table>
 
-Demo video:
+Demo video (GIF fallback):
 
-https://raw.githubusercontent.com/buremba/sub-bridge/main/public/assets/demo.mp4
+![Demo video](public/assets/demo.gif)
+
+## How it works
+
+```mermaid
+graph LR
+  A[Cursor] --> B[Sub Bridge MCP server]
+  A --> C[Local OpenAI-compatible proxy]
+  B --> F[OpenAI OAuth]
+  B --> G[Claude OAuth]
+  C --> D[Claude APIs]
+  C --> E[OpenAI APIs]
+```
+
+Sub Bridge is an MCP server that includes OpenAI API proxy. It lets you login with Claude or ChatGPT and generate API keys for the proxy, which then set in Cursor Settings as an external provider. 
+
+The proxy uses Codex and Claude Code specific instructions that enables you to use Cursor with your local credentials.
 
 ## API key format and parsing
 
