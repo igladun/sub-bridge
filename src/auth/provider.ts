@@ -110,6 +110,35 @@ export class ClaudeProvider implements AuthProvider {
   }
 }
 
+export async function refreshClaudeToken(refreshToken: string): Promise<TokenResult> {
+  const response = await fetch(CLAUDE_TOKEN_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      grant_type: 'refresh_token',
+      client_id: CLAUDE_CLIENT_ID,
+      refresh_token: refreshToken,
+    }),
+  })
+
+  if (!response.ok) {
+    const error = await response.text()
+    throw new Error(`Claude token refresh failed: ${error}`)
+  }
+
+  const data = (await response.json()) as {
+    access_token: string
+    refresh_token?: string
+    expires_in?: number
+  }
+
+  return {
+    accessToken: data.access_token,
+    refreshToken: data.refresh_token,
+    expiresIn: data.expires_in,
+  }
+}
+
 // ============================================================================
 // OpenAI Provider - Device Code Flow
 // ============================================================================

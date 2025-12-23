@@ -15,6 +15,8 @@ import {
 import { logRequest, logResponse, logError, isVerbose, logHeaders, logStreamChunk } from '../utils/logger'
 import { getChatGptInstructions } from '../utils/chatgpt-instructions'
 import { convertToResponsesFormat } from '../utils/chat-to-responses'
+import { decodeAccessToken } from '../oauth/crypto'
+import { refreshClaudeToken } from '../auth/provider'
 
 // Model alias mapping (short names → full Claude model IDs)
 const MODEL_ALIASES: Record<string, string> = {
@@ -37,11 +39,20 @@ interface ParsedKeys {
   configs: KeyConfig[]
   defaultKey?: string   // fallback for ultrathink/unmatched
   defaultAccountId?: string
+  oauth?: OAuthTokens
+  oauthError?: string
 }
 
 interface TokenInfo {
   token: string
   accountId?: string
+}
+
+interface OAuthTokens {
+  claudeToken?: string
+  claudeRefreshToken?: string
+  chatgptToken?: string
+  chatgptAccountId?: string
 }
 
 const CHATGPT_BASE_URL = process.env.CHATGPT_BASE_URL || 'https://chatgpt.com/backend-api/codex'
@@ -86,6 +97,32 @@ function isJwtToken(token: string): boolean {
   return parts.length === 3 && parts.every((p) => p.length > 0)
 }
 
+function mergeOAuthTokens(target: OAuthTokens, incoming: OAuthTokens | null) {
+  if (!incoming) return
+  if (incoming.claudeToken && !target.claudeToken) target.claudeToken = incoming.claudeToken
+  if (incoming.claudeRefreshToken && !target.claudeRefreshToken) target.claudeRefreshToken = incoming.claudeRefreshToken
+  if (incoming.chatgptToken && !target.chatgptToken) target.chatgptToken = incoming.chatgptToken
+  if (incoming.chatgptAccountId && !target.chatgptAccountId) target.chatgptAccountId = incoming.chatgptAccountId
+}
+
+function parseOAuthToken(token: string): { tokens?: OAuthTokens; error?: string } | null {
+  if (!token.startsWith('sb1.')) return null
+  const payload = decodeAccessToken(token)
+  if (!payload) {
+    return { error: 'OAuth token invalid or expired. Please re-authenticate.' }
+  }
+  const result: OAuthTokens = {}
+  if (payload.providers.claude?.access_token) result.claudeToken = payload.providers.claude.access_token
+  if (payload.providers.claude?.refresh_token) result.claudeRefreshToken = payload.providers.claude.refresh_token
+  if (payload.providers.chatgpt?.access_token) result.chatgptToken = payload.providers.chatgpt.access_token
+  if (payload.providers.chatgpt?.account_id) result.chatgptAccountId = payload.providers.chatgpt.account_id
+  return { tokens: result }
+}
+
+function isSubBridgeToken(token: string): boolean {
+  return token.startsWith('sb1.')
+}
+
 function normalizeChatGptModel(requestedModel: string): string {
   if (!requestedModel) return CHATGPT_DEFAULT_MODEL
   if (requestedModel.includes('codex')) return requestedModel
@@ -107,15 +144,23 @@ function parseRoutedKeys(authHeader: string | undefined): ParsedKeys {
   const configs: KeyConfig[] = []
   let defaultKey: string | undefined
   let defaultAccountId: string | undefined
+  const oauthTokens: OAuthTokens = {}
+  let oauthError: string | undefined
 
   for (const token of tokens) {
     if (!token) continue
 
     // Check if it's a routed key (contains '=')
     if (!token.includes('=')) {
+      const parsed = parseTokenWithAccount(token)
+      if (isSubBridgeToken(parsed.token)) {
+        const oauthParsed = parseOAuthToken(parsed.token)
+        if (oauthParsed?.error) oauthError = oauthParsed.error
+        if (oauthParsed?.tokens) mergeOAuthTokens(oauthTokens, oauthParsed.tokens)
+        continue
+      }
       // Plain key without routing - use as default
       if (!defaultKey) {
-        const parsed = parseTokenWithAccount(token)
         defaultKey = parsed.token
         defaultAccountId = parsed.accountId
       }
@@ -131,7 +176,22 @@ function parseRoutedKeys(authHeader: string | undefined): ParsedKeys {
 
     const mappingsPart = token.slice(0, lastColon)
     const parsedToken = parseTokenWithAccount(token.slice(lastColon + 1))
-    const apiKey = parsedToken.token
+    let apiKey = parsedToken.token
+    if (isSubBridgeToken(apiKey)) {
+      const oauthParsed = parseOAuthToken(apiKey)
+      if (oauthParsed?.error) {
+        oauthError = oauthParsed.error
+        continue
+      }
+      if (oauthParsed?.tokens) {
+        mergeOAuthTokens(oauthTokens, oauthParsed.tokens)
+        if (oauthParsed.tokens.claudeToken) {
+          apiKey = oauthParsed.tokens.claudeToken
+        } else {
+          continue
+        }
+      }
+    }
 
     const mappings = mappingsPart.split(',').map(m => {
       const [from, to] = m.split('=')
@@ -142,6 +202,10 @@ function parseRoutedKeys(authHeader: string | undefined): ParsedKeys {
     configs.push({ mappings, apiKey, accountId: parsedToken.accountId })
   }
 
+  const hasOAuth = Boolean(oauthTokens.claudeToken || oauthTokens.chatgptToken || oauthTokens.chatgptAccountId)
+  if (hasOAuth || oauthError) {
+    return { configs, defaultKey, defaultAccountId, oauth: hasOAuth ? oauthTokens : undefined, oauthError }
+  }
   return { configs, defaultKey, defaultAccountId }
 }
 
@@ -684,20 +748,44 @@ async function handleChatCompletion(c: Context) {
   }
 
   const parsedKeys = parseRoutedKeys(c.req.header('authorization'))
-  const routing = resolveModelRouting(requestedModel, parsedKeys)
+  if (parsedKeys.oauthError) {
+    return c.json({
+      error: {
+        message: parsedKeys.oauthError,
+        type: 'authentication_error',
+        code: 'authentication_error',
+      }
+    }, 401)
+  }
+  const oauthTokens = parsedKeys.oauth
+  let routing = resolveModelRouting(requestedModel, parsedKeys)
+  if (!routing && oauthTokens?.claudeToken) {
+    const resolvedModel = MODEL_ALIASES[requestedModel] || requestedModel
+    if (resolvedModel.startsWith('claude-')) {
+      routing = { claudeModel: resolvedModel, apiKey: oauthTokens.claudeToken }
+    }
+  }
   const isClaude = routing !== null && (routing.claudeModel.startsWith('claude-') || parsedKeys.configs.some(c => c.mappings.some(m => m.from === requestedModel)))
 
   // If not a Claude model and we have a default key, proxy to OpenAI or ChatGPT backend
-  if (!isClaude && parsedKeys.defaultKey) {
-    const tokenInfo: TokenInfo = {
-      token: parsedKeys.defaultKey,
-      accountId: parsedKeys.defaultAccountId,
+  if (!isClaude) {
+    if (parsedKeys.defaultKey) {
+      const tokenInfo: TokenInfo = {
+        token: parsedKeys.defaultKey,
+        accountId: parsedKeys.defaultAccountId,
+      }
+      const useChatGpt = Boolean(tokenInfo.accountId) || isJwtToken(tokenInfo.token)
+      if (useChatGpt) {
+        return handleChatGptProxy(c, body, requestedModel, tokenInfo, isStreaming)
+      }
+      return handleOpenAIProxy(c, body, requestedModel, tokenInfo.token, isStreaming)
     }
-    const useChatGpt = Boolean(tokenInfo.accountId) || isJwtToken(tokenInfo.token)
-    if (useChatGpt) {
-      return handleChatGptProxy(c, body, requestedModel, tokenInfo, isStreaming)
+    if (oauthTokens?.chatgptToken) {
+      return handleChatGptProxy(c, body, requestedModel, {
+        token: oauthTokens.chatgptToken,
+        accountId: oauthTokens.chatgptAccountId,
+      }, isStreaming)
     }
-    return handleOpenAIProxy(c, body, requestedModel, tokenInfo.token, isStreaming)
   }
 
   if (!isClaude || !routing) {
@@ -716,7 +804,10 @@ Examples:
     })
   }
 
-  const { claudeModel, apiKey: anthropicKey } = routing
+  const { claudeModel, apiKey: initialClaudeToken } = routing
+  const claudeRefreshToken = oauthTokens?.claudeRefreshToken
+  const usedOAuthClaude = Boolean(oauthTokens?.claudeToken && initialClaudeToken === oauthTokens.claudeToken)
+  let claudeAccessToken = initialClaudeToken
 
   body.model = claudeModel
 
@@ -774,17 +865,36 @@ Examples:
   const allowedFields = ['model', 'messages', 'max_tokens', 'stop_sequences', 'stream', 'system', 'temperature', 'top_p', 'top_k', 'tools', 'tool_choice']
   for (const field of allowedFields) if (body[field] !== undefined) cleanBody[field] = body[field]
 
-  const response = await fetch('https://api.anthropic.com/v1/messages', {
+  const sendClaudeRequest = (token: string) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
     headers: {
       'content-type': 'application/json',
-      'authorization': `Bearer ${anthropicKey}`,
+      'authorization': `Bearer ${token}`,
       'anthropic-beta': 'oauth-2025-04-20,prompt-caching-2024-07-31',
       'anthropic-version': '2023-06-01',
       'accept': isStreaming ? 'text/event-stream' : 'application/json',
     },
     body: JSON.stringify(cleanBody),
   })
+
+  let response = await sendClaudeRequest(claudeAccessToken)
+  if (!response.ok && response.status === 401 && usedOAuthClaude && claudeRefreshToken) {
+    try {
+      const refreshed = await refreshClaudeToken(claudeRefreshToken)
+      if (refreshed.accessToken) {
+        claudeAccessToken = refreshed.accessToken
+        response = await sendClaudeRequest(claudeAccessToken)
+      }
+    } catch {
+      return c.json({
+        error: {
+          message: 'Claude OAuth refresh failed. Please re-authenticate.',
+          type: 'authentication_error',
+          code: 'authentication_error',
+        }
+      }, 401)
+    }
+  }
 
   if (!response.ok) {
     const errorText = await response.text()

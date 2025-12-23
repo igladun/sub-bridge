@@ -20,6 +20,44 @@
       </symbol>
     </svg>
 
+    <!-- OAuth Flow Banner -->
+    <template x-if="oauth.active">
+      <div class="rounded-xl border border-sky-500/30 bg-sky-950/50 p-4 shadow-sm">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-3">
+            <div class="flex h-8 w-8 items-center justify-center rounded-full bg-sky-500/20">
+              <svg class="h-4 w-4 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1"/>
+              </svg>
+            </div>
+            <div>
+              <p class="text-sm font-medium text-sky-100">Authorizing MCP Client</p>
+              <p class="text-xs text-sky-300/70" x-text="'Client: ' + (oauth.clientId || 'Unknown')"></p>
+            </div>
+          </div>
+          <div class="flex items-center gap-2">
+            <template x-if="(claude.connected || chatgpt.connected) && !oauth.completing">
+              <button
+                @click="completeOAuthFlow()"
+                class="rounded-lg bg-sky-500 px-4 py-2 text-sm font-semibold text-white hover:bg-sky-400 transition"
+              >
+                Authorize
+              </button>
+            </template>
+            <template x-if="oauth.completing">
+              <span class="text-sm text-sky-300">Completing...</span>
+            </template>
+          </div>
+        </div>
+        <template x-if="oauth.error">
+          <p class="mt-2 text-sm text-red-400" x-text="oauth.error"></p>
+        </template>
+        <template x-if="!claude.connected && !chatgpt.connected">
+          <p class="mt-2 text-xs text-sky-300/70">Please login with Claude or ChatGPT below to authorize.</p>
+        </template>
+      </div>
+    </template>
+
     <!-- Connect Section -->
     <div class="flex items-center justify-between">
       <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Providers</h2>
@@ -177,7 +215,7 @@
     <!-- ============================================================ -->
       <div class="space-y-4" x-init="fetchTunnelProviders()">
         <section class="space-y-2">
-          <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">Gateways</h2>
+          <h2 class="text-xs font-semibold uppercase tracking-wider text-neutral-400">OpenAI API Gateway</h2>
           <div class="rounded-xl border border-neutral-800 bg-neutral-900/70 shadow-sm flex flex-col gap-3">
             <div class="flex items-center gap-3 p-4 pb-0">
               <input
@@ -189,70 +227,72 @@
               >
               <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">OpenAI Base URL</label>
             </div>
-              <template x-if="claude.connected || chatgpt.connected">
-                <div class="flex items-start gap-3 p-4 pb-0 pt-0">
-                  <div class="flex flex-col gap-2 w-full">
-                    <template x-for="(route, i) in routes" :key="i">
-                      <div
-                        class="grid items-center gap-2"
-                        :class="Object.keys(claude.accounts).length > 1 ? 'grid-cols-[1fr_auto_auto_1fr_auto]' : 'grid-cols-[1fr_auto_1fr_auto]'"
-                      >
-                        <input
-                          type="text"
-                          list="cursor-models"
-                          x-model="route.cursor"
-                          placeholder="Cursor model..."
-                          class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
-                        >
-                        <span class="text-neutral-500 px-1">-></span>
-                        <template x-if="Object.keys(claude.accounts).length > 1">
-                          <select
-                            x-model="route.account"
-                            x-init="route.account = route.account || claude.activeAccount"
-                            class="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
-                          >
-                            <template x-for="email in Object.keys(claude.accounts)" :key="'route-account-' + email">
-                              <option :value="email" x-text="claude.accounts[email].displayName || email"></option>
-                            </template>
-                          </select>
-                        </template>
-                        <input
-                          type="text"
-                          list="claude-models"
-                          x-model="route.claude"
-                          placeholder="Claude model..."
-                          class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
-                        >
-                        <button
-                          @click="routes.splice(i, 1)"
-                          class="p-2 text-neutral-500 hover:text-red-400 transition"
-                          title="Remove route"
-                        >
-                          <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
-                        </button>
-                      </div>
-                    </template>
-                    <button
-                      @click="routes.push({ cursor: '', claude: '', account: claude.activeAccount || '' })"
-                      class="inline-flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200 transition mt-1"
-                    >
-                      <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                      Add Route
-                    </button>
-                  </div>
-                  <label class="text-xs text-neutral-500 shrink-0 w-28 text-right self-start">Routes</label>
-                </div>
-              </template>
+            <div class="flex items-center gap-3 px-4 pb-0">
+            <input
+            type="text"
+            :value="apiKey"
+            readonly
+            @focus="$el.select()"
+            placeholder="Connect to a provider first..."
+            class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono"
+          >              <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">Generated API Key</label>
+        </div>
+              
             <div class="flex items-center gap-3 p-4 border-t border-neutral-800">
-              <input
-                type="text"
-                :value="apiKey"
-                readonly
-                @focus="$el.select()"
-                placeholder="Connect to a provider first..."
-                class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono"
-              >
-              <label class="text-xs text-neutral-500 shrink-0 w-28 text-right">Generated API Key</label>
+              <template x-if="claude.connected || chatgpt.connected">
+              <div class="flex items-start gap-3">
+                <div class="flex flex-col gap-2 w-full">
+                  <template x-for="(route, i) in routes" :key="i">
+                    <div
+                      class="grid items-center gap-2"
+                      :class="Object.keys(claude.accounts).length > 1 ? 'grid-cols-[1fr_auto_auto_1fr_auto]' : 'grid-cols-[1fr_auto_1fr_auto]'"
+                    >
+                      <input
+                        type="text"
+                        list="cursor-models"
+                        x-model="route.cursor"
+                        placeholder="Cursor model..."
+                        class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
+                      >
+                      <span class="text-neutral-500 px-1">-></span>
+                      <template x-if="Object.keys(claude.accounts).length > 1">
+                        <select
+                          x-model="route.account"
+                          x-init="route.account = route.account || claude.activeAccount"
+                          class="rounded-lg border border-neutral-800 bg-neutral-950 px-2 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
+                        >
+                          <template x-for="email in Object.keys(claude.accounts)" :key="'route-account-' + email">
+                            <option :value="email" x-text="claude.accounts[email].displayName || email"></option>
+                          </template>
+                        </select>
+                      </template>
+                      <input
+                        type="text"
+                        list="claude-models"
+                        x-model="route.claude"
+                        placeholder="Claude model..."
+                        class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-500 focus:border-neutral-600 focus:outline-none"
+                      >
+                      <button
+                        @click="routes.splice(i, 1)"
+                        class="p-2 text-neutral-500 hover:text-red-400 transition"
+                        title="Remove route"
+                      >
+                        <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"/></svg>
+                      </button>
+                    </div>
+                  </template>
+                  <button
+                    @click="routes.push({ cursor: '', claude: '', account: claude.activeAccount || '' })"
+                    class="inline-flex items-center gap-1 text-sm text-neutral-400 hover:text-neutral-200 transition mt-1"
+                  >
+                    <svg class="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                    Add Route
+                  </button>
+                </div>
+                <label class="text-xs text-neutral-500 shrink-0 w-28 text-right self-start">Routes</label>
+              </div>
+            </template>
             </div>
           </div>
         </section>   
@@ -467,6 +507,16 @@
         // Target app from ?to= query parameter (cursor, etc.)
         targetApp: new URLSearchParams(window.location.search).get('to') || '',
 
+        // OAuth flow state (for MCP client authorization)
+        oauth: {
+          active: false,
+          pendingId: null,
+          clientId: null,
+          state: null,
+          error: null,
+          completing: false
+        },
+
         // Check if we have an external URL (pre-configured tunnel via --tunnel flag)
         get hasExternalUrl() {
           return this.publicUrl.startsWith('https://') && !this.publicUrl.includes('localhost');
@@ -587,6 +637,16 @@
           } catch (e) {
             console.error('Failed to fetch config:', e);
           }
+
+          // Detect OAuth flow from query params
+          const params = new URLSearchParams(window.location.search);
+          if (params.get('oauth_flow') === '1') {
+            this.oauth.active = true;
+            this.oauth.pendingId = params.get('pending_id');
+            this.oauth.clientId = params.get('client_id');
+            this.oauth.state = params.get('state');
+            console.log('[OAuth] Flow detected, pendingId:', this.oauth.pendingId);
+          }
         },
 
         // Claude code input handler (1s debounce)
@@ -633,6 +693,11 @@
               // Save to localStorage
               localStorage.setItem('claude_accounts', JSON.stringify(this.claude.accounts));
               localStorage.setItem('claude_active_account', email);
+
+              // If in OAuth flow, complete it
+              if (this.oauth.active) {
+                await this.completeOAuthFlow();
+              }
             } else {
               this.claude.error = data.error;
             }
@@ -736,6 +801,11 @@
               // Save to localStorage
               localStorage.setItem('chatgpt_accounts', JSON.stringify(this.chatgpt.accounts));
               localStorage.setItem('chatgpt_active_account', accountId);
+
+              // If in OAuth flow, complete it
+              if (this.oauth.active) {
+                await this.completeOAuthFlow();
+              }
             } else if (data.status === 'pending') {
               setTimeout(() => this.pollChatGPT(), 5000);
             } else {
@@ -838,6 +908,81 @@
             this.tunnel.status = { active: false, publicUrl: null };
           } catch (e) {
             this.tunnel.error = 'Failed to stop tunnel: ' + e.message;
+          }
+        },
+
+        // Complete OAuth flow (called after successful provider auth)
+        async completeOAuthFlow() {
+          if (!this.oauth.active || !this.oauth.pendingId) {
+            console.log('[OAuth] No active OAuth flow to complete');
+            return;
+          }
+
+          this.oauth.completing = true;
+          this.oauth.error = null;
+
+          try {
+            // Build providers object with current credentials
+            const providers = {};
+
+            if (this.claude.connected && this.claude.activeAccount) {
+              const account = this.claude.accounts[this.claude.activeAccount];
+              if (account) {
+                providers.claude = {
+                  access_token: account.token,
+                  refresh_token: account.refreshToken
+                };
+              }
+            }
+
+            if (this.chatgpt.connected && this.chatgpt.activeAccount) {
+              const account = this.chatgpt.accounts[this.chatgpt.activeAccount];
+              if (account) {
+                providers.chatgpt = {
+                  access_token: account.token,
+                  account_id: account.accountId
+                };
+              }
+            }
+
+            if (!providers.claude && !providers.chatgpt) {
+              this.oauth.error = 'Please authenticate with at least one provider';
+              return;
+            }
+
+            // Get user ID (email or account ID)
+            const userId = this.claude.activeAccount || this.chatgpt.activeAccount || 'anonymous';
+
+            // Request authorization code
+            const res = await fetch('/oauth/code', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                pending_id: this.oauth.pendingId,
+                user_id: userId,
+                providers
+              })
+            });
+
+            const data = await res.json();
+
+            if (data.success && data.redirect_uri && data.code) {
+              // Build redirect URL with authorization code
+              const redirectUrl = new URL(data.redirect_uri);
+              redirectUrl.searchParams.set('code', data.code);
+              if (data.state) {
+                redirectUrl.searchParams.set('state', data.state);
+              }
+
+              console.log('[OAuth] Redirecting to:', redirectUrl.toString());
+              window.location.href = redirectUrl.toString();
+            } else {
+              this.oauth.error = data.error || 'Failed to complete authorization';
+            }
+          } catch (e) {
+            this.oauth.error = 'Failed to complete OAuth: ' + e.message;
+          } finally {
+            this.oauth.completing = false;
           }
         }
       };

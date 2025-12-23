@@ -20,6 +20,7 @@ import { log, setVerbose } from './utils/logger'
 import { createAuthRoutes } from './routes/auth'
 import { createTunnelRoutes } from './routes/tunnels'
 import { createChatRoutes } from './routes/chat'
+import { createOAuthRoutes } from './routes/oauth'
 import { addSharedOptions } from './utils/cli-args'
 import { buildStatusText } from './utils/setup-instructions'
 
@@ -118,6 +119,10 @@ export function createServerApp(config: ServerConfig, getPublicUrl: () => string
   app.route('/auth', createAuthRoutes())
   app.route('/api/tunnels', createTunnelRoutes(tunnelRegistry, () => localPort.value))
   app.route('/v1', createChatRoutes())
+
+  // OAuth routes (MCP OAuth Authorization Server)
+  // Mounted at root for /.well-known/oauth-authorization-server and /oauth/*
+  app.route('/', createOAuthRoutes(getPublicUrl))
 
   return app
 }
