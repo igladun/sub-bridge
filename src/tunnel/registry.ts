@@ -118,21 +118,38 @@ export class TunnelRegistry {
       throw new Error(`Tunnel provider ${provider.name} is not available`)
     }
 
-    try {
-      this.lastError = null
-      this.activeTunnel = await provider.start(localPort, namedUrl)
-      this.startedAt = new Date().toISOString()
-      await verifyTunnelHealth(this.activeTunnel.publicUrl, localPort)
-      return this.getStatus()
-    } catch (error) {
-      this.lastError = error instanceof Error ? error.message : String(error)
-      if (this.activeTunnel) {
-        this.activeTunnel.stop()
-        this.activeTunnel = null
-        this.startedAt = null
+    const isQuickCloudflare = providerId === 'cloudflare' && !namedUrl
+    const maxAttempts = isQuickCloudflare ? 4 : 1
+    let lastError: Error | null = null
+
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        this.lastError = null
+        this.activeTunnel = await provider.start(localPort, namedUrl)
+        this.startedAt = new Date().toISOString()
+        await verifyTunnelHealth(this.activeTunnel.publicUrl, localPort)
+        return this.getStatus()
+      } catch (error) {
+        lastError = error instanceof Error ? error : new Error(String(error))
+        this.lastError = lastError.message
+        if (this.activeTunnel) {
+          this.activeTunnel.stop()
+          this.activeTunnel = null
+          this.startedAt = null
+        }
+        if (attempt < maxAttempts) {
+          await sleep(600)
+          continue
+        }
       }
-      throw error
     }
+
+    const message = lastError?.message || 'Unknown error'
+    throw new Error(
+      maxAttempts > 1
+        ? `Failed to start tunnel after ${maxAttempts} attempts: ${message}`
+        : message
+    )
   }
 
   stop(): TunnelStatus {

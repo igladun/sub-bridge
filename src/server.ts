@@ -23,6 +23,7 @@ import { createChatRoutes } from './routes/chat'
 import { createOAuthRoutes } from './routes/oauth'
 import { addSharedOptions } from './utils/cli-args'
 import { buildStatusText } from './utils/setup-instructions'
+import { getCloudflaredHostnames } from './utils/cloudflared-config'
 
 // ============================================================================
 // CONFIGURATION
@@ -86,10 +87,14 @@ export function createServerApp(config: ServerConfig, getPublicUrl: () => string
   }))
 
   // API config for frontend
-  app.get('/api/config', (c) => c.json({
-    publicUrl: getPublicUrl(),
-    port: localPort.value,
-  }))
+  app.get('/api/config', async (c) => {
+    const cloudflaredHostnames = await getCloudflaredHostnames(localPort.value)
+    return c.json({
+      publicUrl: getPublicUrl(),
+      port: localPort.value,
+      cloudflaredHostnames,
+    })
+  })
 
   // MCP tool forwarding endpoint
   app.post('/mcp/tools/:name', async (c) => {

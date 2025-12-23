@@ -3,6 +3,9 @@
 // ============================================================================
 
 import { Tunnel } from 'cloudflared'
+import fs from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
 import type { TunnelProvider, TunnelInstance } from '../types'
 
 export class CloudflareTunnelProvider implements TunnelProvider {
@@ -27,14 +30,35 @@ export class CloudflareTunnelProvider implements TunnelProvider {
     }
 
     // Anonymous tunnel using cloudflared npm package
-    const tunnel = Tunnel.quick(`http://localhost:${localPort}`)
+    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sub-bridge-cloudflared-'))
+    const configPath = path.join(tmpDir, 'config.yml')
+    await fs.writeFile(configPath, 'no-autoupdate: true\n')
+    // Use HTTP/2 protocol for more reliable connections
+    const tunnel = Tunnel.quick(`http://localhost:${localPort}`, { '--config': configPath, '--protocol': 'http2' })
 
+    // Wait for both URL and connected events to ensure tunnel is ready
     const url = await new Promise<string>((resolve, reject) => {
-      const timeout = setTimeout(() => reject(new Error('Tunnel timeout (30s)')), 30000)
-      tunnel.once('url', (tunnelUrl: string) => {
-        clearTimeout(timeout)
-        resolve(tunnelUrl)
+      const timeout = setTimeout(() => reject(new Error('Tunnel timeout (60s)')), 60000)
+      let tunnelUrl: string | null = null
+      let connected = false
+
+      const tryResolve = () => {
+        if (tunnelUrl && connected) {
+          clearTimeout(timeout)
+          resolve(tunnelUrl)
+        }
+      }
+
+      tunnel.once('url', (url: string) => {
+        tunnelUrl = url
+        tryResolve()
       })
+
+      tunnel.once('connected', () => {
+        connected = true
+        tryResolve()
+      })
+
       tunnel.once('error', (err: Error) => {
         clearTimeout(timeout)
         reject(err)
@@ -44,7 +68,10 @@ export class CloudflareTunnelProvider implements TunnelProvider {
     return {
       providerId: this.id,
       publicUrl: url,
-      stop: () => tunnel.stop()
+      stop: () => {
+        tunnel.stop()
+        void fs.rm(tmpDir, { recursive: true, force: true })
+      }
     }
   }
 }

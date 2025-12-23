@@ -478,7 +478,8 @@
           loading: false,
           starting: false,
           error: null,
-          customDomain: ''
+          customDomain: '',
+          detectedDomains: []
         },
 
         // Server config
@@ -644,6 +645,12 @@
             const config = await res.json();
             this.publicUrl = config.publicUrl;
             this.port = config.port;
+            if (Array.isArray(config.cloudflaredHostnames)) {
+              this.tunnel.detectedDomains = config.cloudflaredHostnames;
+            }
+            if (!this.hasTunnel && !this.tunnel.customDomain && this.tunnel.detectedDomains.length > 0) {
+              this.tunnel.customDomain = this.tunnel.detectedDomains[0];
+            }
           } catch (e) {
             console.error('Failed to fetch config:', e);
           }
