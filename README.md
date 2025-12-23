@@ -16,7 +16,9 @@ Links:
 
 Cursor -> Sub Bridge MCP server -> Local OpenAI-compatible proxy -> Claude / OpenAI APIs
 
-Tokens stay local in your browser storage. If you enable a tunnel, it only forwards requests to your machine; Sub Bridge does not store credentials server-side.
+Sub Bridge is an MCP server that includes OpenAI API proxy. It lets you login with Claude or ChatGPT and generate API keys for the proxy, which then set in Cursor Settings as an external provider. 
+
+The proxy uses Codex and Claude Code specific instructions that enables you to use Cursor with your local credentials.
 
 ## Quick Start
 
