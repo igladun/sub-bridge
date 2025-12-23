@@ -2,8 +2,6 @@
 
 Use ChatGPT Pro/Max, Claude Max, etc. directly in Cursor via an MCP-managed OpenAI-compatible proxy.
 
-[![Add Sub Bridge to Cursor](https://cursor.com/deeplink/mcp-install-dark.png)](cursor://anysphere.cursor-deeplink/mcp/install?name=sub-bridge&config=eyJjb21tYW5kIjogIm5weCIsICJhcmdzIjogWyIteSIsICJzdWItYnJpZGdlIl19)
-
 Links:
 - Repo: https://github.com/buremba/sub-bridge
 - Landing page: https://buremba.github.io/sub-bridge/
@@ -20,9 +18,13 @@ Cursor -> Sub Bridge MCP server -> Local OpenAI-compatible proxy -> Claude / Ope
 
 Tokens stay local in your browser storage. If you enable a tunnel, it only forwards requests to your machine; Sub Bridge does not store credentials server-side.
 
-## Visual setup (from the landing page)
+## Quick Start
 
-1) Log in with Claude (required)
+1. Install the MCP server:
+
+[![Add Sub Bridge to Cursor](https://cursor.com/deeplink/mcp-install-dark.png)](cursor://anysphere.cursor-deeplink/mcp/install?name=sub-bridge&config=eyJjb21tYW5kIjogIm5weCIsICJhcmdzIjogWyIteSIsICJzdWItYnJpZGdlIl19)
+
+1) Ask chat to connect ChatGPT Pro or Claude Max and login with your credentials locally and generate API Key for Cursor locally.
 
 <img src="public/assets/ui.png" alt="Login and connect accounts" width="420">
 
