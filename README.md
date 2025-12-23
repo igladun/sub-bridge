@@ -17,7 +17,7 @@ Links:
 ```mermaid
 graph LR
   A[Cursor] --> B[Sub Bridge MCP server]
-  B --> C[Local OpenAI-compatible proxy]
+  A --> C[Local OpenAI-compatible proxy]
   C --> D[Claude APIs]
   C --> E[OpenAI APIs]
 ```
@@ -49,11 +49,9 @@ The proxy uses Codex and Claude Code specific instructions that enables you to u
   </tr>
 </table>
 
-Demo video (click to open the live landing page):
+Demo video:
 
-<a href="https://buremba.github.io/sub-bridge/">
-  <video src="https://raw.githubusercontent.com/buremba/sub-bridge/main/public/assets/demo.mp4" width="640" controls muted playsinline poster="https://raw.githubusercontent.com/buremba/sub-bridge/main/public/assets/setup.png"></video>
-</a>
+https://raw.githubusercontent.com/buremba/sub-bridge/main/public/assets/demo.mp4
 
 ## API key format and parsing
 
