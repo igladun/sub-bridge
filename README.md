@@ -45,29 +45,6 @@ Demo video (click to open the live landing page):
   <video src="https://raw.githubusercontent.com/buremba/sub-bridge/main/public/assets/demo.mp4" width="640" controls muted playsinline poster="https://raw.githubusercontent.com/buremba/sub-bridge/main/public/assets/setup.png"></video>
 </a>
 
-## Quick start (Cursor MCP)
-
-1. Install the MCP server in Cursor:
-   - Click the button above, or
-   - Add an MCP server with:
-     - Command: `npx`
-     - Args: `-y sub-bridge`
-2. In Cursor chat, call the tool: `get_connection` and complete the Claude OAuth login (required).
-   - It returns the public URL and the Claude authorize URL.
-   - Optional: pass `provider=claude` to show only the Claude section.
-   - Option A: Call `get_connection` again with `oauth_code` and `provider=claude` (paste full callback URL or `code#state`) to exchange and return a token.
-   - Option B: Use the optional curl snippet shown in `get_connection`.
-3. Copy the public URL from the tool output and set:
-   - OpenAI API Base URL: `<publicUrl>/v1`
-   - OpenAI API Key: `<Claude access token> <OpenAI key>` (space-separated)
-     - If using ChatGPT login, use `<chatgpt_access_token>#<chatgpt_account_id>` for the OpenAI key.
-
-Note: the npm package name is `sub-bridge` (no `@` prefix).
-
-Defaults:
-- If no options are passed, the MCP server auto-starts an anonymous Cloudflare tunnel.
-- The proxy starts automatically when the MCP server launches via `npx`.
-
 ## API key format and parsing
 
 Sub Bridge reads the `Authorization: Bearer ...` header and supports multiple tokens so you can route Cursor models to Claude while still passing an OpenAI or ChatGPT token.
