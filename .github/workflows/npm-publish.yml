@@ -29,15 +29,21 @@ jobs:
           echo "Exchanging GitHub OIDC token for npm token..."
           # Get the GitHub OIDC token
           GH_OIDC_TOKEN=$(curl -s -H "Authorization: bearer $ACTIONS_ID_TOKEN_REQUEST_TOKEN" "$ACTIONS_ID_TOKEN_REQUEST_URL&audience=npm" | jq -r '.value')
+          echo "Got GitHub OIDC token (length: ${#GH_OIDC_TOKEN})"
 
           # Exchange it for an npm token
-          NPM_TOKEN=$(curl -s -X POST https://registry.npmjs.org/-/npm/v1/auth/oidc \
+          echo "Sending request to npm OIDC endpoint..."
+          RESPONSE=$(curl -s -X POST https://registry.npmjs.org/-/npm/v1/auth/oidc \
             -H "Content-Type: application/json" \
-            -d "{\"tokenId\": \"$GH_OIDC_TOKEN\"}" | jq -r '.npmToken')
+            -d "{\"tokenId\": \"$GH_OIDC_TOKEN\"}")
+          echo "npm response: $RESPONSE"
+
+          NPM_TOKEN=$(echo "$RESPONSE" | jq -r '.npmToken')
 
           if [ "$NPM_TOKEN" = "null" ] || [ -z "$NPM_TOKEN" ]; then
             echo "Failed to exchange OIDC token for npm token"
-            echo "This likely means the package is not configured for trusted publishing on npm"
+            echo "Full response:"
+            echo "$RESPONSE" | jq '.'
             exit 1
           fi
 
