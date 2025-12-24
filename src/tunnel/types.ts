@@ -2,11 +2,19 @@
 // Tunnel Types
 // ============================================================================
 
+export interface NamedTunnelInfo {
+  id: string
+  name: string
+  hostname?: string
+}
+
 export interface TunnelProvider {
   id: string
   name: string
   supportsNamedTunnels: boolean
   isAvailable(): Promise<boolean>
+  isAuthenticated(): Promise<boolean>
+  listTunnels(): Promise<NamedTunnelInfo[]>
   start(localPort: number, namedUrl?: string): Promise<TunnelInstance>
 }
 
@@ -29,4 +37,6 @@ export interface ProviderInfo {
   name: string
   available: boolean
   supportsNamedTunnels: boolean
+  authenticated?: boolean
+  namedTunnels?: NamedTunnelInfo[]
 }

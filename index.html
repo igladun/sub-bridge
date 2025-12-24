@@ -240,39 +240,39 @@
                 </template>
               </div>
 
-              <div class="space-y-1">
-                <label
-                  class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500"
-                  x-text="tunnelLabel"
-                ></label>
-                <input
-                  type="text"
-                  :value="hasTunnel ? effectivePublicUrl + '/v1' : tunnel.customDomain"
-                  :readonly="hasTunnel"
-                  @input="if (!hasTunnel) tunnel.customDomain = $event.target.value"
-                  @focus="$el.select()"
-                  :placeholder="hasTunnel ? '' : (tunnel.loading ? 'Loading providers...' : 'e.g. yourname.example.com')"
-                  class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 placeholder:text-neutral-600 focus:border-neutral-600 focus:outline-none font-mono"
-                >
-              </div>
+              <template x-if="hasTunnel">
+                <div class="space-y-1">
+                  <label class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">OpenAI Base URL</label>
+                  <input
+                    type="text"
+                    :value="effectivePublicUrl + '/v1'"
+                    readonly
+                    @focus="$el.select()"
+                    class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none font-mono"
+                  >
+                </div>
+              </template>
 
               <template x-if="!hasTunnel">
                 <div class="space-y-3">
-                  <div class="flex flex-wrap items-center justify-between gap-3">
-                    <div class="flex flex-wrap gap-2" x-show="!tunnel.loading && tunnel.providers.some(p => p.available)">
-                      <template x-for="p in tunnel.providers.filter(p => p.available)" :key="p.id">
-                        <button
-                          @click="tunnel.selectedProvider = p.id"
-                          :class="tunnel.selectedProvider === p.id ? 'bg-neutral-700 text-white border-neutral-600' : 'bg-neutral-950 text-neutral-400 border-neutral-800'"
-                          class="inline-flex items-center justify-center rounded-lg border px-3 py-1.5 text-xs font-semibold uppercase tracking-wide transition"
-                          x-text="p.name"
-                        ></button>
-                      </template>
+                  <!-- Named tunnel selector (only when authenticated) -->
+                  <template x-if="selectedProvider?.authenticated && selectedProvider?.namedTunnels?.length">
+                    <div class="space-y-2">
+                      <label class="text-[10px] font-semibold uppercase tracking-wider text-neutral-500">Use Named Tunnel (optional)</label>
+                      <select
+                        x-model="tunnel.customDomain"
+                        class="w-full rounded-lg border border-neutral-800 bg-neutral-950 px-3 py-2 text-sm text-neutral-100 focus:border-neutral-600 focus:outline-none"
+                      >
+                        <option value="">Quick tunnel (random URL)</option>
+                        <template x-for="t in selectedProvider.namedTunnels" :key="t.id">
+                          <option :value="t.hostname || t.name" x-text="t.hostname ? t.name + ' (' + t.hostname + ')' : t.name"></option>
+                        </template>
+                      </select>
                     </div>
+                  </template>
+                  <div class="flex flex-wrap items-center justify-between gap-3">
                     <div class="flex flex-wrap gap-2" x-show="tunnel.loading">
                       <span class="h-7 w-20 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"></span>
-                      <span class="h-7 w-16 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"></span>
-                      <span class="h-7 w-12 rounded-lg border border-neutral-800 bg-neutral-900/60 animate-pulse"></span>
                     </div>
                     <template x-if="!tunnel.status.active && !hasExternalUrl">
                       <button
@@ -285,7 +285,7 @@
                     </template>
                   </div>
                   <p x-show="!tunnel.providers.some(p => p.available) && !tunnel.loading" class="text-xs text-neutral-400">
-                    No tunnel providers found (install cloudflared, ngrok, or tailscale).
+                    No tunnel providers found. Install cloudflared to create tunnels.
                   </p>
                 </div>
               </template>
@@ -514,10 +514,14 @@
           return this.tunnel.status.active || this.hasExternalUrl;
         },
 
+        // Selected tunnel provider object
+        get selectedProvider() {
+          return this.tunnel.providers.find(p => p.id === this.tunnel.selectedProvider) || null;
+        },
+
         // Selected tunnel provider name (falls back to generic label)
         get selectedTunnelName() {
-          const selected = this.tunnel.providers.find(p => p.id === this.tunnel.selectedProvider);
-          return selected ? selected.name : 'Tunnel';
+          return this.selectedProvider ? this.selectedProvider.name : 'Tunnel';
         },
 
         get firstClaudeAccountId() {

@@ -51,11 +51,7 @@ async function verifyTunnelHealth(publicUrl: string, expectedPort: number): Prom
     }
   }
 }
-import {
-  CloudflareTunnelProvider,
-  NgrokTunnelProvider,
-  TailscaleTunnelProvider,
-} from './providers'
+import { CloudflareTunnelProvider } from './providers'
 
 export class TunnelRegistry {
   private providers: Map<string, TunnelProvider> = new Map()
@@ -64,24 +60,21 @@ export class TunnelRegistry {
   private lastError: string | null = null
 
   constructor() {
-    const allProviders: TunnelProvider[] = [
-      new CloudflareTunnelProvider(),
-      new NgrokTunnelProvider(),
-      new TailscaleTunnelProvider(),
-    ]
-    for (const provider of allProviders) {
-      this.providers.set(provider.id, provider)
-    }
+    const provider = new CloudflareTunnelProvider()
+    this.providers.set(provider.id, provider)
   }
 
   async getProviders(): Promise<ProviderInfo[]> {
     const results: ProviderInfo[] = []
     for (const [id, provider] of this.providers) {
+      const authenticated = await provider.isAuthenticated()
       results.push({
         id,
         name: provider.name,
         available: await provider.isAvailable(),
         supportsNamedTunnels: provider.supportsNamedTunnels,
+        authenticated,
+        namedTunnels: authenticated ? await provider.listTunnels() : undefined,
       })
     }
     return results
