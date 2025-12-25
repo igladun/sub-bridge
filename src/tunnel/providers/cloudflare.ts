@@ -252,7 +252,8 @@ ingress:
         const connectTimeout = setTimeout(checkReady, 15000)
         tunnel.once('connected', () => {
           clearTimeout(connectTimeout)
-          checkReady()
+          // Wait for DNS propagation before marking as ready
+          setTimeout(checkReady, 5000)
         })
       })
 
