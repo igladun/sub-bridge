@@ -202,9 +202,18 @@ ingress:
     // Anonymous tunnel using cloudflared npm package
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), 'sub-bridge-cloudflared-'))
     const configPath = path.join(tmpDir, 'config.yml')
+    // Minimal config - just disable autoupdate
+    // The --config flag replaces the default ~/.cloudflared/config.yml entirely
     await fs.writeFile(configPath, 'no-autoupdate: true\n')
+
     // Use HTTP/2 protocol for more reliable connections
-    const tunnel = Tunnel.quick(`http://localhost:${localPort}`, { '--config': configPath, '--protocol': 'http2' })
+    // --origincert pointing to nonexistent file prevents cloudflared from using
+    // ~/.cloudflared/cert.pem which would trigger authenticated tunnel mode
+    const tunnel = Tunnel.quick(`http://localhost:${localPort}`, {
+      '--config': configPath,
+      '--protocol': 'http2',
+      '--origincert': path.join(tmpDir, 'cert.pem'),
+    })
 
     // Wait for URL event, then wait for connection to be established
     const url = await new Promise<string>((resolve, reject) => {
