@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.2.1](https://github.com/buremba/sub-bridge/compare/sub-bridge-v1.2.0...sub-bridge-v1.2.1) (2025-12-26)
+
+
+### Bug Fixes
+
+* detect tunnel process exit and update status in UI
+* fix ChatGPT codex API "Instructions are not valid" error
+* add Claude token refresh endpoint for automatic token renewal
+* return refreshToken and email from auth complete endpoint
+* validate Claude tokens on page load and show expired status
+
+
 ## [1.2.0](https://github.com/buremba/sub-bridge/compare/sub-bridge-v1.1.2...sub-bridge-v1.2.0) (2025-12-25)
 
 
