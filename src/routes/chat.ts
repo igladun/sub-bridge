@@ -599,10 +599,11 @@ async function handleChatGptProxy(
 
   if (!response.ok) {
     const errorText = await response.text()
-    logError(errorText.slice(0, 200))
+    logError(`ChatGPT API error (${response.status}): ${errorText.slice(0, 500)}`)
     try {
       const parsed = JSON.parse(errorText)
-      const errorMessage = parsed.error?.message || parsed.message || 'Unknown error'
+      // ChatGPT can return errors in various formats
+      const errorMessage = parsed.error?.message || parsed.message || parsed.detail || errorText.slice(0, 200) || 'Unknown error'
       const errorType = parsed.error?.type || parsed.type || 'api_error'
 
       // Map error types to user-friendly messages
@@ -625,7 +626,7 @@ async function handleChatGptProxy(
     } catch {
       return c.json({
         error: {
-          message: `ChatGPT error: ${errorText.slice(0, 200)}`,
+          message: `ChatGPT error (${response.status}): ${errorText.slice(0, 300)}`,
           type: 'api_error',
           code: 'api_error',
         }

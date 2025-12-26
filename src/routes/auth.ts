@@ -2,7 +2,7 @@
  * Authentication routes for Claude and OpenAI OAuth
  */
 import { Hono } from 'hono'
-import { claudeProvider, openaiProvider, type AuthSession } from '../auth/provider'
+import { claudeProvider, openaiProvider, refreshClaudeToken, type AuthSession } from '../auth/provider'
 
 // Auth session storage
 const AUTH_SESSION_TTL_MS = 15 * 60 * 1000
@@ -95,7 +95,33 @@ export function createAuthRoutes() {
         return c.json({ success: false, error: 'Missing state. Paste CODE#STATE.' })
       }
       const result = await claudeProvider.completeAuth(codeInput, sessionId)
-      return c.json({ success: true, accessToken: result.accessToken })
+      return c.json({
+        success: true,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken,
+        email: result.email,
+      })
+    } catch (error) {
+      const msg = error instanceof Error ? error.message : 'Unknown error'
+      return c.json({ success: false, error: msg })
+    }
+  })
+
+  // Claude: Refresh token (returns JSON)
+  app.post('/claude/refresh', async (c) => {
+    try {
+      const body = await c.req.json().catch(() => ({})) as { refreshToken?: string }
+      const refreshToken = body.refreshToken?.trim()
+      if (!refreshToken) {
+        return c.json({ success: false, error: 'Missing refresh token' })
+      }
+      const result = await refreshClaudeToken(refreshToken)
+      return c.json({
+        success: true,
+        accessToken: result.accessToken,
+        refreshToken: result.refreshToken || refreshToken,
+        expiresIn: result.expiresIn,
+      })
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'
       return c.json({ success: false, error: msg })
@@ -135,6 +161,7 @@ export function createAuthRoutes() {
         status: 'success',
         accessToken: result.accessToken,
         accountId: result.accountId,
+        email: result.email,
       })
     } catch (error) {
       const msg = error instanceof Error ? error.message : 'Unknown error'

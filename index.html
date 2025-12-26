@@ -110,14 +110,15 @@
           </div>
           <!-- Status Indicator -->
           <div class="flex items-center gap-2 text-xs">
-            <span class="h-2 w-2 rounded-full" :class="claude.connected ? 'bg-emerald-400' : 'bg-neutral-600'"></span>
-            <span class="text-xs" :class="claude.connected ? 'text-emerald-400' : 'text-neutral-500'" x-text="claude.connected ? 'Connected' : 'Not connected'"></span>
+            <span class="h-2 w-2 rounded-full" :class="claude.connected ? (hasExpiredClaudeAccount ? 'bg-amber-400' : 'bg-emerald-400') : 'bg-neutral-600'"></span>
+            <span class="text-xs" :class="claude.connected ? (hasExpiredClaudeAccount ? 'text-amber-400' : 'text-emerald-400') : 'text-neutral-500'" x-text="claude.connected ? (hasExpiredClaudeAccount ? 'Token expired' : 'Connected') : 'Not connected'"></span>
           </div>
           <template x-if="Object.keys(claude.accounts).length">
             <div class="mt-1 flex flex-col gap-1">
               <template x-for="email in Object.keys(claude.accounts)" :key="'claude-account-' + email">
                 <div class="flex items-center gap-2 text-xs">
-                  <span class="text-neutral-300 font-mono" x-text="claude.accounts[email].displayName || email"></span>
+                  <span class="font-mono" :class="claude.accounts[email].expired ? 'text-red-400' : 'text-neutral-300'" x-text="claude.accounts[email].displayName || email"></span>
+                  <span x-show="claude.accounts[email].expired" class="text-red-400 text-xs">(expired)</span>
                   <button
                     @click="disconnectClaude(email)"
                     class="text-xs text-neutral-400 hover:text-red-400 transition"
@@ -558,6 +559,10 @@
           return Object.keys(this.claude.accounts)[0] || '';
         },
 
+        get hasExpiredClaudeAccount() {
+          return Object.values(this.claude.accounts).some(account => account.expired);
+        },
+
         get firstChatGptAccountId() {
           return Object.keys(this.chatgpt.accounts)[0] || '';
         },
@@ -662,6 +667,11 @@
             }
           }
           this.claude.connected = Object.keys(this.claude.accounts).length > 0;
+
+          // Validate Claude tokens if we have accounts (refresh only if invalid)
+          if (this.claude.connected) {
+            this.validateClaudeTokens();
+          }
 
           // Load ChatGPT accounts from localStorage
           const savedChatGPTAccounts = localStorage.getItem('chatgpt_accounts');
@@ -780,6 +790,76 @@
           this.claude.code = '';
           this.claude.showInput = false;
           this.claude.error = null;
+        },
+
+        // Validate and refresh Claude tokens on page load (only refresh if invalid)
+        async validateClaudeTokens() {
+          const accountIds = Object.keys(this.claude.accounts);
+          for (const accountId of accountIds) {
+            const account = this.claude.accounts[accountId];
+            if (!account.token) {
+              account.expired = true;
+              continue;
+            }
+
+            // First, validate the token by making a simple API call
+            try {
+              const validateRes = await fetch('https://api.anthropic.com/v1/messages', {
+                method: 'POST',
+                headers: {
+                  'content-type': 'application/json',
+                  'authorization': `Bearer ${account.token}`,
+                  'anthropic-version': '2023-06-01',
+                },
+                body: JSON.stringify({
+                  model: 'claude-sonnet-4-20250514',
+                  max_tokens: 1,
+                  messages: [{ role: 'user', content: 'hi' }]
+                })
+              });
+
+              if (validateRes.ok || validateRes.status === 400) {
+                // Token is valid (400 = bad request but auth worked)
+                account.expired = false;
+                continue;
+              }
+
+              if (validateRes.status !== 401) {
+                // Not an auth error, token might still be valid
+                account.expired = false;
+                continue;
+              }
+
+              // Token is invalid (401), try to refresh
+              if (!account.refreshToken) {
+                account.expired = true;
+                continue;
+              }
+
+              const refreshRes = await fetch('/auth/claude/refresh', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ refreshToken: account.refreshToken })
+              });
+              const refreshData = await refreshRes.json();
+
+              if (refreshData.success) {
+                account.token = refreshData.accessToken;
+                if (refreshData.refreshToken) {
+                  account.refreshToken = refreshData.refreshToken;
+                }
+                account.expired = false;
+                console.log(`[Claude] Token refreshed for ${accountId}`);
+              } else {
+                account.expired = true;
+                console.warn(`[Claude] Token refresh failed for ${accountId}: ${refreshData.error}`);
+              }
+            } catch (e) {
+              // Network error - assume token is still valid
+              console.error(`[Claude] Token validation error for ${accountId}:`, e);
+            }
+          }
+          localStorage.setItem('claude_accounts', JSON.stringify(this.claude.accounts));
         },
 
         // Start ChatGPT device flow

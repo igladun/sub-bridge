@@ -128,6 +128,17 @@ export class TunnelRegistry {
         if (!isManual) {
           await verifyTunnelHealth(this.activeTunnel.publicUrl, localPort)
         }
+        // Monitor for tunnel process death
+        if (this.activeTunnel.onExit) {
+          this.activeTunnel.onExit((code) => {
+            if (this.activeTunnel) {
+              this.activeTunnel = null
+              this.startedAt = null
+              this.lastError = `Tunnel process exited unexpectedly (code ${code})`
+              console.error(`[Tunnel] Process died with code ${code}`)
+            }
+          })
+        }
         return this.getStatus()
       } catch (error) {
         lastError = error instanceof Error ? error : new Error(String(error))

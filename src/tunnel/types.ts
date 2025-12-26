@@ -22,6 +22,7 @@ export interface TunnelInstance {
   providerId: string
   publicUrl: string
   stop(): void
+  onExit?: (callback: (code: number | null) => void) => void
 }
 
 export interface TunnelStatus {

@@ -194,6 +194,9 @@ ingress:
       stop: () => {
         proc.kill()
         void fs.rm(tmpDir, { recursive: true, force: true })
+      },
+      onExit: (callback: (code: number | null) => void) => {
+        proc.on('close', callback)
       }
     }
   }
@@ -277,6 +280,9 @@ ingress:
       stop: () => {
         tunnel.stop()
         void fs.rm(tmpDir, { recursive: true, force: true })
+      },
+      onExit: (callback: (code: number | null) => void) => {
+        tunnel.on('exit', callback)
       }
     }
   }
