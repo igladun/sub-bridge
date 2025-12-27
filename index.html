@@ -10,6 +10,52 @@
 <body class="min-h-screen bg-neutral-950 text-neutral-100 antialiased">
   <main class="mx-auto flex w-full max-w-xl flex-col gap-4 px-5 py-6" x-data="app()">
 
+    <!-- Embedded Browser Warning Overlay -->
+    <template x-if="embeddedBrowser.detected && !embeddedBrowser.dismissed && oauth.active">
+      <div class="fixed inset-0 z-50 flex items-center justify-center bg-neutral-950/95 p-6">
+        <div class="max-w-md rounded-2xl border border-amber-500/30 bg-neutral-900 p-6 shadow-2xl">
+          <div class="flex flex-col items-center gap-4 text-center">
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/20">
+              <svg class="h-6 w-6 text-amber-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+              </svg>
+            </div>
+            <div>
+              <h2 class="text-lg font-semibold text-amber-100">Open in External Browser</h2>
+              <p class="mt-2 text-sm text-neutral-400">
+                Authentication needs to run in your system browser, not Cursor's built-in browser.
+              </p>
+            </div>
+            <div class="w-full space-y-3">
+              <div class="flex items-center gap-2 rounded-lg bg-neutral-800 p-3">
+                <input
+                  type="text"
+                  readonly
+                  :value="window.location.href"
+                  class="flex-1 bg-transparent text-xs text-neutral-300 outline-none"
+                  x-ref="urlInput"
+                />
+                <button
+                  @click="copyUrlToClipboard()"
+                  class="shrink-0 rounded-md bg-amber-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-amber-500 transition"
+                  x-text="embeddedBrowser.copied ? 'Copied!' : 'Copy URL'"
+                ></button>
+              </div>
+              <p class="text-xs text-neutral-500">
+                Copy the URL above and paste it in Chrome, Safari, or Firefox.
+              </p>
+            </div>
+            <button
+              @click="embeddedBrowser.dismissed = true"
+              class="mt-2 text-xs text-neutral-500 hover:text-neutral-300 underline"
+            >
+              Continue anyway (may not work)
+            </button>
+          </div>
+        </div>
+      </div>
+    </template>
+
     <!-- SVG Icons -->
     <svg class="hidden" aria-hidden="true">
       <symbol id="logo-claude" viewBox="0 0 24 24">
@@ -530,6 +576,27 @@
           completing: false
         },
 
+        // Embedded browser detection (Cursor Simple Browser, VS Code, etc.)
+        embeddedBrowser: {
+          detected: (() => {
+            const ua = navigator.userAgent.toLowerCase();
+            // Detect VS Code, Cursor, Electron-based editors' embedded browsers
+            const isElectron = ua.includes('electron');
+            const isVSCode = ua.includes('vscode') || ua.includes('code/');
+            const isCursor = ua.includes('cursor');
+            // Check for Simple Browser characteristics
+            const hasVSCodeApi = typeof window.acquireVsCodeApi === 'function';
+            // Simple Browser in Electron doesn't have full Chrome features
+            const isEmbedded = isElectron || isVSCode || isCursor || hasVSCodeApi;
+            if (isEmbedded) {
+              console.log('[Sub Bridge] Embedded browser detected:', { ua, isElectron, isVSCode, isCursor, hasVSCodeApi });
+            }
+            return isEmbedded;
+          })(),
+          dismissed: false,
+          copied: false
+        },
+
         // Check if we have an external URL (pre-configured tunnel via --tunnel flag)
         get hasExternalUrl() {
           return this.publicUrl.startsWith('https://') && !this.publicUrl.includes('localhost');
@@ -707,6 +774,28 @@
             this.oauth.clientId = params.get('client_id');
             this.oauth.state = params.get('state');
             console.log('[OAuth] Flow detected, pendingId:', this.oauth.pendingId);
+          }
+        },
+
+        // Copy URL to clipboard for embedded browser workaround
+        async copyUrlToClipboard() {
+          try {
+            await navigator.clipboard.writeText(window.location.href);
+            this.embeddedBrowser.copied = true;
+            setTimeout(() => {
+              this.embeddedBrowser.copied = false;
+            }, 2000);
+          } catch (e) {
+            // Fallback for older browsers or if clipboard API fails
+            const input = this.$refs.urlInput;
+            if (input) {
+              input.select();
+              document.execCommand('copy');
+              this.embeddedBrowser.copied = true;
+              setTimeout(() => {
+                this.embeddedBrowser.copied = false;
+              }, 2000);
+            }
           }
         },
 
