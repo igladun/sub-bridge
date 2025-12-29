@@ -210,6 +210,13 @@ function parseRoutedKeys(authHeader: string | undefined): ParsedKeys {
 }
 
 /**
+ * Check if a model name resolves to a Claude model (either directly or via alias)
+ */
+function isClaudeModel(model: string): boolean {
+  return model.startsWith('claude-') || MODEL_ALIASES[model]?.startsWith('claude-')
+}
+
+/**
  * Find the Claude model and API key for a given requested model
  */
 function resolveModelRouting(requestedModel: string, parsedKeys: ParsedKeys): { claudeModel: string; apiKey: string } | null {
@@ -222,14 +229,17 @@ function resolveModelRouting(requestedModel: string, parsedKeys: ParsedKeys): { 
     }
   }
 
-  // If model starts with 'claude-', use default key
-  if (requestedModel.startsWith('claude-') && parsedKeys.defaultKey) {
-    return { claudeModel: requestedModel, apiKey: parsedKeys.defaultKey }
+  // Resolve model alias (e.g., 'opus-4.5' -> 'claude-opus-4-5-20251101')
+  const resolvedModel = MODEL_ALIASES[requestedModel] || requestedModel
+
+  // If model is a Claude model (directly or via alias), use default key
+  if (isClaudeModel(requestedModel) && parsedKeys.defaultKey) {
+    return { claudeModel: resolvedModel, apiKey: parsedKeys.defaultKey }
   }
 
   // Fallback to default key with the model as-is (for ultrathink)
   if (parsedKeys.defaultKey) {
-    return { claudeModel: requestedModel, apiKey: parsedKeys.defaultKey }
+    return { claudeModel: resolvedModel, apiKey: parsedKeys.defaultKey }
   }
 
   return null
@@ -766,7 +776,11 @@ async function handleChatCompletion(c: Context) {
       routing = { claudeModel: resolvedModel, apiKey: oauthTokens.claudeToken }
     }
   }
-  const isClaude = routing !== null && (routing.claudeModel.startsWith('claude-') || parsedKeys.configs.some(c => c.mappings.some(m => m.from === requestedModel)))
+  const isClaude = routing !== null && (
+    routing.claudeModel.startsWith('claude-') ||
+    isClaudeModel(requestedModel) ||
+    parsedKeys.configs.some(c => c.mappings.some(m => m.from === requestedModel))
+  )
 
   // If not a Claude model and we have a default key, proxy to OpenAI or ChatGPT backend
   if (!isClaude) {
@@ -791,18 +805,22 @@ async function handleChatCompletion(c: Context) {
 
   if (!isClaude || !routing) {
     logRequest('bypass', requestedModel, {})
-    const instructions = `Model "${requestedModel}" not configured. Set up routing in your API key:
+    const errorMessage = `Model "${requestedModel}" is not configured. To use this model, either:
 
-Format: o3=opus-4.5,o3-mini=sonnet-4.5:sk-ant-xxx
+1. Add a model mapping to your API key: o3=opus-4.5:sk-ant-xxx
+2. Add a default API key for OpenAI/ChatGPT fallback
+3. Login via Sub Bridge OAuth to use your Claude/ChatGPT subscription
 
-Examples:
-  o3=opus-4.5:sk-ant-xxx              # Single routing
-  o3=opus-4.5,o3-mini=sonnet-4.5:sk-ant-xxx  # Multiple routings
-  sk-ant-xxx                          # Default key for claude-* models`
+See https://github.com/buremba/sub-bridge for setup instructions.`
+
+    logError(`Model not configured: ${requestedModel}`)
     return c.json({
-      id: 'error', object: 'chat.completion',
-      choices: [{ index: 0, message: { role: 'assistant', content: instructions }, finish_reason: 'stop' }]
-    })
+      error: {
+        message: errorMessage,
+        type: 'invalid_request_error',
+        code: 'model_not_configured',
+      }
+    }, 400)
   }
 
   const { claudeModel, apiKey: initialClaudeToken } = routing
