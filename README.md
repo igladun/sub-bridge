@@ -12,9 +12,7 @@ Use ChatGPT Pro/Max, Claude Max, etc. directly in Cursor via an MCP-managed Open
 
 ## Quick Start
 
-1. Install the MCP server (GitHub doesn't support deep links, so copy and paste the link below into your browser):
-
-<a href="cursor://anysphere.cursor-deeplink/mcp/install?name=sub-bridge&config=eyJjb21tYW5kIjogIm5weCIsICJhcmdzIjogWyIteSIsICJzdWItYnJpZGdlIl19"><img src="https://cursor.com/deeplink/mcp-install-dark.png" alt="Add Sub Bridge to Cursor" height="48"></a>
+1. Install the MCP server by copying this link and pasting it into your browser:
 
 ```
 cursor://anysphere.cursor-deeplink/mcp/install?name=sub-bridge&config=eyJjb21tYW5kIjogIm5weCIsICJhcmdzIjogWyIteSIsICJzdWItYnJpZGdlIl19
