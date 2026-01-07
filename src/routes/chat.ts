@@ -263,6 +263,53 @@ function resolveModelRouting(requestedModel: string, parsedKeys: ParsedKeys): { 
   return null
 }
 
+// Convert OpenAI content block to Claude format (handles image_url -> image conversion)
+function convertContentBlockToClaude(block: any): any {
+  if (!block || typeof block !== 'object') return block
+
+  // Text blocks pass through unchanged
+  if (block.type === 'text') {
+    return { type: 'text', text: block.text || '' }
+  }
+
+  // Convert OpenAI image_url to Claude image format
+  if (block.type === 'image_url') {
+    const url = typeof block.image_url === 'string'
+      ? block.image_url
+      : block.image_url?.url
+
+    if (!url) return null
+
+    // Handle data URLs (base64 encoded images)
+    if (url.startsWith('data:')) {
+      const match = url.match(/^data:([^;]+);base64,(.+)$/)
+      if (match) {
+        const [, mediaType, data] = match
+        return {
+          type: 'image',
+          source: {
+            type: 'base64',
+            media_type: mediaType,
+            data: data,
+          },
+        }
+      }
+    }
+
+    // Handle external URLs
+    return {
+      type: 'image',
+      source: {
+        type: 'url',
+        url: url,
+      },
+    }
+  }
+
+  // Pass through other block types unchanged
+  return block
+}
+
 function convertMessages(messages: any[]): any[] {
   const converted: any[] = []
 
@@ -341,6 +388,17 @@ function convertMessages(messages: any[]): any[] {
         }
       }
       converted.push({ role: 'assistant', content: content.length > 0 ? content : '' })
+      continue
+    }
+
+    // Handle user messages with array content (may contain image_url blocks)
+    if (msg.role === 'user' && Array.isArray(msg.content)) {
+      const content: any[] = []
+      for (const block of msg.content) {
+        const convertedBlock = convertContentBlockToClaude(block)
+        if (convertedBlock) content.push(convertedBlock)
+      }
+      converted.push({ role: 'user', content: content.length > 0 ? content : '' })
       continue
     }
 
