@@ -36,6 +36,7 @@ async function main() {
     port: opts.port ? parseInt(opts.port, 10) : undefined,
     tunnelUrl: opts.tunnel,
     verbose: opts.verbose || false,
+    contextOverflow: opts.contextOverflow || 'truncate',
   }
 
   // MCP-only mode: just run the thin proxy

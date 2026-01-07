@@ -19,6 +19,22 @@ import { getChatGptInstructions } from '../utils/chatgpt-instructions'
 import { convertToResponsesFormat } from '../utils/chat-to-responses'
 import { decodeAccessToken } from '../oauth/crypto'
 import { refreshClaudeToken } from '../auth/provider'
+import {
+  estimateRequestTokens,
+  truncateMessages,
+  CLAUDE_MAX_CONTEXT_TOKENS,
+  SAFETY_MARGIN,
+} from '../utils/token-estimation'
+
+// Context overflow handling mode
+export type ContextOverflowMode = 'truncate' | 'error' | 'warn'
+
+// Module-level config (set via setContextOverflowMode)
+let contextOverflowMode: ContextOverflowMode = 'truncate'
+
+export function setContextOverflowMode(mode: ContextOverflowMode) {
+  contextOverflowMode = mode
+}
 
 // Model alias mapping (short names → full Claude model IDs)
 const MODEL_ALIASES: Record<string, string> = {
@@ -903,6 +919,56 @@ See https://github.com/buremba/sub-bridge for setup instructions.`
   const cleanBody: any = {}
   const allowedFields = ['model', 'messages', 'max_tokens', 'stop_sequences', 'stream', 'system', 'temperature', 'top_p', 'top_k', 'tools', 'tool_choice']
   for (const field of allowedFields) if (body[field] !== undefined) cleanBody[field] = body[field]
+
+  // Context window validation and truncation
+  const tokenEstimate = estimateRequestTokens(cleanBody)
+
+  if (tokenEstimate.isOverLimit) {
+    const effectiveLimit = Math.floor(CLAUDE_MAX_CONTEXT_TOKENS * (1 - SAFETY_MARGIN))
+
+    if (contextOverflowMode === 'error') {
+      return c.json({
+        error: {
+          message: `Context too large: estimated ${tokenEstimate.totalTokens.toLocaleString()} tokens exceeds ${CLAUDE_MAX_CONTEXT_TOKENS.toLocaleString()} limit. ` +
+                   `Breakdown: system=${tokenEstimate.systemTokens.toLocaleString()}, messages=${tokenEstimate.messagesTokens.toLocaleString()}, tools=${tokenEstimate.toolsTokens.toLocaleString()}. ` +
+                   `Enable context truncation with --context-overflow=truncate or reduce your conversation history.`,
+          type: 'invalid_request_error',
+          code: 'context_length_exceeded',
+        }
+      }, 400)
+    }
+
+    if (contextOverflowMode === 'truncate') {
+      const truncationResult = truncateMessages(
+        cleanBody.messages,
+        effectiveLimit,
+        tokenEstimate.systemTokens,
+        tokenEstimate.toolsTokens
+      )
+
+      cleanBody.messages = truncationResult.messages
+
+      if (truncationResult.truncationNotice && cleanBody.system) {
+        // Add truncation notice to beginning of system prompt
+        cleanBody.system = [
+          { type: 'text', text: truncationResult.truncationNotice },
+          ...cleanBody.system,
+        ]
+      }
+
+      // Re-estimate and log the truncated context
+      const newEstimate = estimateRequestTokens(cleanBody)
+      logRequest('claude', `${requestedModel} → ${claudeModel} (truncated: -${truncationResult.removedCount} msgs, ~${newEstimate.totalTokens.toLocaleString()} tokens)`, {
+        system: systemText,
+        messages: cleanBody.messages,
+        tools: cleanBody.tools,
+        tokens: newEstimate.totalTokens,
+      })
+    } else if (contextOverflowMode === 'warn') {
+      // Log warning but proceed (will likely fail at API level)
+      logError(`Warning: Context estimated at ${tokenEstimate.totalTokens.toLocaleString()} tokens, may exceed ${CLAUDE_MAX_CONTEXT_TOKENS.toLocaleString()} limit`)
+    }
+  }
 
   const sendClaudeRequest = (token: string) => fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',

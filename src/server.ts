@@ -19,7 +19,7 @@ import { findFreePort, SERVICE_IDENTIFIER } from './utils/port'
 import { log, setVerbose } from './utils/logger'
 import { createAuthRoutes } from './routes/auth'
 import { createTunnelRoutes } from './routes/tunnels'
-import { createChatRoutes } from './routes/chat'
+import { createChatRoutes, setContextOverflowMode } from './routes/chat'
 import { createOAuthRoutes } from './routes/oauth'
 import { addSharedOptions } from './utils/cli-args'
 import { buildStatusText } from './utils/setup-instructions'
@@ -33,6 +33,7 @@ export interface ServerConfig {
   port?: number
   tunnelUrl?: string
   verbose: boolean
+  contextOverflow?: 'truncate' | 'error' | 'warn'
 }
 
 // Tunnel registry (singleton)
@@ -144,6 +145,9 @@ export interface StartedServer {
 
 export async function startServer(config: ServerConfig): Promise<StartedServer> {
   setVerbose(config.verbose)
+  if (config.contextOverflow) {
+    setContextOverflowMode(config.contextOverflow)
+  }
 
   const port = config.port ?? await findFreePort()
   const localPort = { value: port }
@@ -192,6 +196,7 @@ async function main() {
     port: opts.port ? parseInt(opts.port, 10) : (envPort || undefined),
     tunnelUrl: opts.tunnel || process.env.TUNNEL_URL,
     verbose: opts.verbose || process.env.VERBOSE === 'true',
+    contextOverflow: opts.contextOverflow || 'truncate',
   }
 
   await startServer(config)
