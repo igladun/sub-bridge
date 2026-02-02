@@ -33,6 +33,70 @@ Use ChatGPT Pro/Max, Claude Max, etc. directly in Cursor via an MCP-managed Open
   </tr>
 </table>
 
+## Docker (all-in-container)
+
+This runs both the MCP proxy and HTTP server inside Docker and keeps the Codex/ChatGPT subscription flow local.
+
+1. Build the image:
+
+```bash
+docker build -t sub-bridge:local .
+```
+
+2. Add the MCP server in Cursor using Docker (stdio) under `mcpServers`:
+
+```json
+"sub-bridge": {
+  "autoApprove": [],
+  "disabled": false,
+  "command": "docker",
+  "env": {},
+  "transportType": "stdio",
+  "args": [
+    "run",
+    "--rm",
+    "-i",
+    "--read-only",
+    "--tmpfs",
+    "/tmp",
+    "--cap-drop",
+    "ALL",
+    "--security-opt",
+    "no-new-privileges:true",
+    "-p",
+    "127.0.0.1:8787:8787",
+    "-v",
+    "sub_bridge_data:/home/node/.sub-bridge",
+    "-v",
+    "/ABS/PATH/TO/CODEX:/workspace:ro",
+    "sub-bridge:local"
+  ]
+}
+```
+
+3. Open `http://localhost:8787` and log in to ChatGPT (Codex) and/or Claude.
+4. Use the generated API key in Cursor with base URL `http://localhost:8787/v1`.
+
+Notes:
+- The Codex/ChatGPT OAuth token is wrapped into an `sb1.*` key and encrypted with a local secret stored at `/home/node/.sub-bridge/secret.key`. The named volume keeps this stable across container restarts.
+- The `/ABS/PATH/TO/CODEX` mount is read-only and optional; it is included here to keep your code accessible in-container if needed.
+- For custom routing, set `CHATGPT_BASE_URL` and `CHATGPT_DEFAULT_MODEL` via environment variables.
+
+### Tunnels (optional)
+
+You do **not** need a tunnel for normal local use. A tunnel is only required when the client that must reach Sub Bridge cannot access your localhost (for example, Cursor running on a different machine or a remote dev environment).
+
+Enabling a tunnel exposes your local Sub Bridge server via a public URL. Anyone who can reach that URL can hit your instance, so only enable this if you need remote access.
+
+### Docker Compose (optional)
+
+Edit `compose.yaml` to set your codex folder path, then run:
+
+```bash
+docker compose build
+docker compose run --rm --service-ports sub-bridge
+```
+
 ## How it works
 
 ```mermaid
